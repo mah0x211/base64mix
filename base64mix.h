@@ -50,7 +50,7 @@ static const unsigned char BASE64MIX_URLENC[64] = {
 };
 
 
-static inline char *b64m_encode( unsigned char *src, size_t *len, 
+static inline char *b64m_encode( const unsigned char *src, size_t *len, 
                                  const unsigned char enctbl[] )
 {
     unsigned char *res = NULL;
@@ -67,6 +67,7 @@ static inline char *b64m_encode( unsigned char *src, size_t *len,
     
     if( ( res = malloc( bytes + 1 ) ) )
     {
+        const unsigned char *cur = src;
         unsigned char *ptr = res;
         uint8_t c = 0;
         uint8_t state = 0;
@@ -76,27 +77,27 @@ static inline char *b64m_encode( unsigned char *src, size_t *len,
         {
             switch( state ){
                 case 0:
-                    c = ( *src >> 2 ) & 0x3f;
+                    c = ( *cur >> 2 ) & 0x3f;
                     *ptr++ = enctbl[c];
-                    c = ( *src & 0x3 ) << 4;
+                    c = ( *cur & 0x3 ) << 4;
                     state = 1;
                 break;
                 case 1:
-                    c |= ( *src >> 4 ) & 0xf;
+                    c |= ( *cur >> 4 ) & 0xf;
                     *ptr++ = enctbl[c];
-                    c = ( *src & 0xf ) << 2;
+                    c = ( *cur & 0xf ) << 2;
                     state = 2;
                 break;
                 case 2:
-                    c |= ( *src >> 6 ) & 0x3;
+                    c |= ( *cur >> 6 ) & 0x3;
                     *ptr++ = enctbl[c];
-                    c = *src & 0x3f;
+                    c = *cur & 0x3f;
                     *ptr++ = enctbl[c];
                     c = 0;
                     state = 0;
                 break;
             }
-            src++;
+            cur++;
         }
         
         // append last bit
@@ -218,7 +219,7 @@ static const unsigned char BASE64MIX_DEC[255] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 };
 
-static inline char *b64m_decode( unsigned char *src, size_t *len, 
+static inline char *b64m_decode( const unsigned char *src, size_t *len, 
                                  const unsigned char dectbl[] )
 {
     unsigned char *res = NULL;
@@ -226,7 +227,8 @@ static inline char *b64m_decode( unsigned char *src, size_t *len,
     
     if( ( res = malloc( bytes + 1 ) ) )
     {
-        unsigned char *head = src;
+        const unsigned char *cur = src;
+        const unsigned char *head = cur;
         unsigned char *ptr = res;
         uint8_t c = 0;
         uint8_t bit6 = 0;
@@ -235,13 +237,13 @@ static inline char *b64m_decode( unsigned char *src, size_t *len,
         do
         {
             // ignore padding
-            if( *src == '=' )
+            if( *cur == '=' )
             {
                 // check remaining characters
-                while( *(++src) )
+                while( *(++cur) )
                 {
                     // remaining characters must be '='
-                    if( *src != '=' ){
+                    if( *cur != '=' ){
                         free( (void*)res );
                         errno = EINVAL;
                         return NULL;
@@ -250,7 +252,7 @@ static inline char *b64m_decode( unsigned char *src, size_t *len,
                 break;
             }
             // invalid character
-            else if( ( bit6 = dectbl[*src] ) == (uint8_t)-1 ){
+            else if( ( bit6 = dectbl[*cur] ) == (uint8_t)-1 ){
                 free( (void*)res );
                 errno = EINVAL;
                 return NULL;
@@ -280,10 +282,10 @@ static inline char *b64m_decode( unsigned char *src, size_t *len,
                     state = 0;
                 break;
             }
-        } while( *(++src) );
+        } while( *(++cur) );
         
         // invalid length
-        if( ( src - head ) != *len ){
+        if( ( cur - head ) != *len ){
             free( (void*)res );
             errno = EINVAL;
             return NULL;
