@@ -231,13 +231,13 @@ static inline char *b64m_decode( const unsigned char *src, size_t *len,
     if( ( res = malloc( bytes + 1 ) ) )
     {
         const unsigned char *cur = src;
-        const unsigned char *head = cur;
         unsigned char *ptr = res;
         uint8_t c = 0;
-        uint8_t bit6 = 0;
-        uint8_t state = 0;
+        uint32_t bit24 = 1;
+        size_t tail = *len;
+        size_t i = 0;
         
-        do
+        for(; i < tail; i++ )
         {
             // ignore padding
             if( *cur == '=' )
@@ -255,47 +255,27 @@ static inline char *b64m_decode( const unsigned char *src, size_t *len,
                 break;
             }
             // invalid character
-            else if( ( bit6 = dectbl[*cur] ) == (uint8_t)-1 ){
+            else if( ( c = dectbl[*cur] ) > 63 ){
                 free( (void*)res );
                 errno = EINVAL;
                 return NULL;
             }
-            
-            switch( state ){
-                case 0:
-                    c = bit6 << 2;
-                    state = 1;
-                break;
-                case 1:
-                    c |= ( bit6 >> 4 ) & 0x3;
-                    *ptr++ = c;
-                    c = ( bit6 & 0xf ) << 4;
-                    state = 2;
-                break;
-                case 2:
-                    c |= ( bit6 >> 2 ) & 0xf;
-                    *ptr++ = c;
-                    c = ( bit6 & 0x3 ) << 6;
-                    state = 3;
-                break;
-                case 3:
-                    c |= bit6;
-                    *ptr++ = c;
-                    c = 0;
-                    state = 0;
-                break;
+            bit24 = bit24 << 6 | c;
+            if( bit24 & 0x1000000 ){
+                *ptr++ = bit24 >> 16;
+                *ptr++ = bit24 >> 8;
+                *ptr++ = bit24;
+                bit24 = 1;
             }
-        } while( *(++cur) );
-        
-        // invalid length
-        if( ( cur - head ) != *len ){
-            free( (void*)res );
-            errno = EINVAL;
-            return NULL;
+            cur++;
         }
-        // append last bit
-        else if( c ){
-            *ptr++ = c;
+        
+        if( bit24 & 0x40000 ){
+            *ptr++ = bit24 >> 10;
+            *ptr++ = bit24 >> 2;
+        }
+        else if( bit24 & 0x1000 ){
+            *ptr++ = bit24 >> 4;
         }
         *ptr = 0;
         // set result length
