@@ -69,7 +69,7 @@ static inline char *b64m_encode( const unsigned char *src, size_t *len,
     {
         const unsigned char *cur = src;
         unsigned char *ptr = res;
-        uint8_t c = 0;
+        uint8_t c = -1;
         uint8_t state = 0;
         size_t i = 0;
         
@@ -93,7 +93,7 @@ static inline char *b64m_encode( const unsigned char *src, size_t *len,
                     *ptr++ = enctbl[c];
                     c = *cur & 0x3f;
                     *ptr++ = enctbl[c];
-                    c = 0;
+                    c = -1;
                     state = 0;
                 break;
             }
@@ -101,7 +101,7 @@ static inline char *b64m_encode( const unsigned char *src, size_t *len,
         }
         
         // append last bit
-        if( c ){
+        if( c != (uint8_t)-1 ){
             *ptr++ = enctbl[c];
         }
         // append padding if standard base64
