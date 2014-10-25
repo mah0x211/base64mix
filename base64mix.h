@@ -56,9 +56,12 @@ static inline char *b64m_encode( const unsigned char *src, size_t *len,
     unsigned char *res = NULL;
     size_t tail = *len;
     size_t bytes = ( 8.0 / 6.0 * (double)tail);
+    size_t surplus = bytes % 4;
     
     // add padding bytes
-    bytes += bytes % 4;
+    if( surplus ){
+        bytes += 4 - surplus;
+    }
     // no-space for null-term or wrap around
     if( bytes == SIZE_MAX || bytes < tail ){
         errno = ERANGE;
