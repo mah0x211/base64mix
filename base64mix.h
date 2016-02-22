@@ -28,8 +28,16 @@
 #define ___BASE64MIX_H___
 
 #include <stdlib.h>
-#include <stdint.h>
 #include <errno.h>
+
+/* Get SIZE_MAX.  */
+#ifdef __BIONIC__
+#include <limits.h>
+#else
+#include <stdint.h>
+#endif
+// https://lists.gnu.org/archive/html/bug-gnulib/2013-01/msg00094.html 
+// fix include for SIZE_MAX with Bionic libc
 
 static const unsigned char BASE64MIX_STDENC[64] = {
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
