@@ -121,6 +121,122 @@ static inline size_t b64m_encoded_len(size_t len, const unsigned char enctbl[])
 /** @} */
 
 /**
+ * @brief Encode binary data to base64 string using user-provided buffer
+ *
+ * @param src Input binary data to encode (must not be NULL)
+ * @param srclen Length of input data
+ * @param dst Output buffer for encoded string (must not be NULL)
+ * @param dstlen Size of output buffer
+ * @param enctbl Encoding table (BASE64MIX_STDENC or BASE64MIX_URLENC)
+ *
+ * @return Length of encoded string (excluding null terminator), or 0 on error
+ *
+ * @errno EINVAL - Invalid arguments (NULL pointers)
+ * @errno ENOSPC - Output buffer too small
+ *
+ * @note Zero-allocation version: uses caller-provided buffer
+ * @note Buffer size can be calculated with b64m_encoded_len()
+ * @note Result is always null-terminated
+ */
+static inline size_t b64m_encode_to_buffer(const unsigned char *src,
+                                           size_t srclen, char *dst,
+                                           size_t dstlen,
+                                           const unsigned char enctbl[])
+{
+    const uint8_t *cur = src;
+    unsigned char *ptr = (unsigned char *)dst;
+    size_t remain      = 0;
+    size_t i           = 0;
+
+    // Validate input parameters
+    if (!src || !dst || !enctbl) {
+        errno = EINVAL;
+        return 0;
+    }
+
+    // Check if we have enough space
+    if (dstlen < b64m_encoded_len(srclen, enctbl)) {
+        errno = ENOSPC;
+        return 0;
+    }
+
+    // Handle empty input
+    if (srclen == 0) {
+        *dst = '\0';
+        return 0;
+    }
+
+    // Process complete 3-byte groups
+    i = 0;
+    for (size_t n = (srclen / 3) * 3; i < n; i += 3) {
+        // Convert 3x 8bit source bytes into 4 bytes
+        uint32_t val =
+            ((uint32_t)cur[0] << 16) | ((uint32_t)cur[1] << 8) | cur[2];
+        *ptr++ = enctbl[(val >> 18) & 0x3fU];
+        *ptr++ = enctbl[(val >> 12) & 0x3fU];
+        *ptr++ = enctbl[(val >> 6) & 0x3fU];
+        *ptr++ = enctbl[val & 0x3fU];
+        cur += 3;
+    }
+
+    // Handle remaining bytes
+    remain = srclen - i;
+    if (remain > 0) {
+        // Add the remaining small block
+        uint32_t val = (uint32_t)cur[0] << 16;
+        if (remain == 2) {
+            // If we have 2 bytes left, shift the second byte
+            val |= (uint32_t)cur[1] << 8;
+        }
+
+        // Encode the remaining bytes
+        *ptr++ = enctbl[(val >> 18) & 0x3fU];
+        *ptr++ = enctbl[(val >> 12) & 0x3fU];
+
+        // Add remaining characters and padding
+        if (remain == 2) {
+            *ptr++ = enctbl[(val >> 6) & 0x3fU];
+            if (enctbl == BASE64MIX_STDENC) {
+                *ptr++ = '=';
+            }
+        } else if (remain == 1 && enctbl == BASE64MIX_STDENC) {
+            *ptr++ = '=';
+            *ptr++ = '=';
+        }
+    }
+
+    // Null terminate
+    *ptr = '\0';
+
+    return (size_t)(ptr - (unsigned char *)dst);
+}
+
+/**
+ * @name Convenience Macros for Buffer Encoding
+ * @{
+ */
+
+/** @brief Encode to user buffer using standard Base64 format
+ *  @param src Input binary data
+ *  @param srclen Input data length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of encoded string or 0 on error */
+#define b64m_encode_to_buffer_std(src, srclen, dst, dstlen)                    \
+    b64m_encode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_STDENC)
+
+/** @brief Encode to user buffer using URL-safe Base64 format
+ *  @param src Input binary data
+ *  @param srclen Input data length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of encoded string or 0 on error */
+#define b64m_encode_to_buffer_url(src, srclen, dst, dstlen)                    \
+    b64m_encode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_URLENC)
+
+/** @} */
+
+/**
  * @brief Encode binary data to base64 string
  *
  * @param src Input binary data to encode (must not be NULL)
