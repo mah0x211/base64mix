@@ -273,8 +273,9 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
         for (; i < tail; i++) {
             // ignore padding
             if (*cur == '=') {
-                // check remaining characters
-                while (*(++cur)) {
+                // check remaining characters with proper bounds checking
+                for (i++; i < tail; i++) {
+                    cur++;
                     // remaining characters must be '='
                     if (*cur != '=') {
                         free((void *)res);
