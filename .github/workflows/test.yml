@@ -1,0 +1,30 @@
+name: test
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    -
+      name: Checkout
+      uses: actions/checkout@v2
+    -
+      name: Install Tools
+      run: |
+        sudo apt-get install gcc make lcov -y
+    -
+      name: Run Test
+      run: |
+        make coverage
+    -
+      name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        flags: unittests
+        files: coverage/coverage.info
