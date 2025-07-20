@@ -443,6 +443,28 @@ static const unsigned char BASE64MIX_DEC[256] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 /**
+ * @brief Calculate decoded length for base64 decoding
+ *
+ * @param enclen Length of base64 encoded string
+ *
+ * @return Maximum buffer size needed for decoded output (excluding null
+ * terminator)
+ *
+ * @note This calculates the maximum possible decoded length
+ * @note Actual decoded length may be smaller due to padding
+ * @note Use this for buffer allocation in zero-allocation decoding
+ */
+static inline size_t b64m_decoded_len(size_t enclen)
+{
+    if (enclen == 0) {
+        return 0;
+    }
+    // Base64 decoding: 4 input chars -> 3 output bytes (maximum)
+    // Remove padding characters from calculation
+    return (enclen * 3) / 4;
+}
+
+/**
  * @brief Decode base64 string to binary data
  *
  * @param src Input base64 string to decode (must not be NULL)
