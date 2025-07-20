@@ -59,6 +59,11 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
     size_t tail        = 0;
     size_t bytes       = 0;
 
+    // Validate input parameters
+    if (!src || !len || !enctbl) {
+        errno = EINVAL;
+        return NULL;
+    }
     tail = *len;
 
     }
@@ -239,6 +244,12 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
 {
     unsigned char *res = NULL;
     size_t bytes       = 0;
+
+    // Validate input parameters
+    if (!src || !len || !dectbl) {
+        errno = EINVAL;
+        return NULL;
+    }
 
     // Base64 decoding: 4 input bytes -> 3 output bytes (maximum)
     // Use integer arithmetic for precision and performance
