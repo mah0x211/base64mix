@@ -649,7 +649,7 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
                                 const unsigned char dectbl[])
 {
     unsigned char *res = NULL;
-    size_t bytes       = 0;
+    size_t buflen      = 0;
 
     // Validate input parameters
     if (!src || !len || !dectbl) {
@@ -657,85 +657,18 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
         return NULL;
     }
 
-    // Base64 decoding: 4 input bytes -> 3 output bytes (maximum)
-    // Use integer arithmetic for precision and performance
-    bytes = (*len * 3) / 4;
-
-    if ((res = malloc(bytes + 1))) {
-        const uint8_t *cur = src;
-        unsigned char *ptr = res;
-        uint8_t c          = 0;
-        // 24-bit accumulator with sentinel bit for tracking completeness
-        // Bit layout: [sentinel][23..18][17..12][11..6][5..0]
-        // Each base64 char contributes 6 bits, 4 chars = 24 bits = 3 bytes
-        uint32_t bit24     = 1; // Start with sentinel bit at position 0
-        size_t tail        = *len;
-        size_t i           = 0;
-
-        for (; i < tail; i++) {
-            // ignore padding
-            if (*cur == '=') {
-                // check remaining characters with proper bounds checking
-                for (i++; i < tail; i++) {
-                    cur++;
-                    // remaining characters must be '='
-                    if (*cur != '=') {
-                        free((void *)res);
-                        errno = EINVAL;
-                        return NULL;
-                    }
-                }
-                break;
-            }
-            // invalid character (valid base64 decode values are 0-63)
-            else if ((c = dectbl[*cur]) > 63) {
-                free((void *)res);
-                errno = EINVAL;
-                return NULL;
-            }
-            // Accumulate 6 bits from current base64 character
-            // bit24 layout after each character:
-            // 1st char: [1][000000][000000][000000][AAAAAA]
-            // 2nd char: [1][000000][000000][AAAAAA][BBBBBB]
-            // 3rd char: [1][000000][AAAAAA][BBBBBB][CCCCCC]
-            // 4th char: [1][AAAAAA][BBBBBB][CCCCCC][DDDDDD] -> triggers
-            // extraction
-            bit24 = bit24 << 6 | c;
-            // Check if sentinel bit reached position 24 (4 chars accumulated)
-            if (bit24 & 0x1000000) {
-                // Extract 3 bytes from accumulated 24 bits
-                // [AAAAAA|BBBBBB] [BBBBBB|CCCCCC] [CCCCCC|DDDDDD]
-                *ptr++ = bit24 >> 16; // Extract first byte: [AAAAAA|BB]
-                *ptr++ = bit24 >> 8;  // Extract second byte: [BBBB|CCCC]
-                *ptr++ = bit24;       // Extract third byte: [CC|DDDDDD]
-                bit24  = 1;           // Reset with sentinel bit at position 0
-            }
-            cur++;
+    // Calculate required buffer size using zero-allocation helper
+    buflen = b64m_decoded_len(*len) + 1; // +1 for null terminator
+    if ((res = malloc(buflen))) {
+        // Use zero-allocation version to do the actual decoding
+        // Update length with actual decoded length
+        *len = b64m_decode_to_buffer(src, *len, res, buflen, dectbl);
+        if (*len == 0 && errno != 0) {
+            // Error occurred in decoding
+            free(res);
+            return NULL;
         }
-
-        // Handle remaining bits for incomplete groups (due to padding)
-        // Check sentinel bit position to determine how many chars were
-        // accumulated
-        if (bit24 & 0x40000) {
-            // 3 base64 chars accumulated: [1][AAAAAA][BBBBBB][CCCCCC][000000]
-            // 18 valid bits = 2 complete bytes + 2 padding bits (ignored)
-            // Extract: [AAAAAA|BBBBBB] [BBBBBB|CCCCCC]
-            *ptr++ = bit24 >> 10; // First byte: bits [17..10] = [AAAAAA|BB]
-            *ptr++ = bit24 >> 2;  // Second byte: bits [9..2] = [BBBB|CCCC]
-            // Ignore bits [1..0] as padding
-        } else if (bit24 & 0x1000) {
-            // 2 base64 chars accumulated: [1][AAAAAA][BBBBBB][000000][000000]
-            // 12 valid bits = 1 complete byte + 4 padding bits (ignored)
-            // Extract: [AAAAAA|BBBBBB]
-            *ptr++ = bit24 >> 4; // Single byte: bits [11..4] = [AAAAAA|BB]
-            // Ignore bits [3..0] as padding
-        }
-        // If bit24 & 0x40 (only 1 char), ignore as invalid incomplete group
-        *ptr = 0;
-        // set result length
-        *len = (size_t)(ptr - res);
     }
-
     return (char *)res;
 }
 
