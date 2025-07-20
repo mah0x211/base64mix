@@ -465,6 +465,166 @@ static inline size_t b64m_decoded_len(size_t enclen)
 }
 
 /**
+ * @brief Decode base64 string to binary data using user-provided buffer
+ *
+ * @param src Input base64 string to decode (must not be NULL)
+ * @param srclen Length of input base64 string
+ * @param dst Output buffer for decoded binary data (must not be NULL)
+ * @param dstlen Size of output buffer
+ * @param dectbl Decoding table (BASE64MIX_STDDEC, BASE64MIX_URLDEC, or
+ * BASE64MIX_DEC)
+ *
+ * @return Length of decoded data (excluding null terminator), or 0 on error
+ *
+ * @errno EINVAL - Invalid arguments (NULL pointers)
+ * @errno EINVAL - Invalid base64 character encountered
+ * @errno EINVAL - Invalid padding format (non-'=' after '=')
+ * @errno ENOSPC - Output buffer too small
+ *
+ * @note Zero-allocation version: uses caller-provided buffer
+ * @note Buffer size can be calculated with b64m_decoded_len()
+ * @note Result is always null-terminated for safety
+ * @note Incomplete groups (1 char) are silently ignored as invalid
+ */
+static inline size_t b64m_decode_to_buffer(const unsigned char *src,
+                                           size_t srclen, unsigned char *dst,
+                                           size_t dstlen,
+                                           const unsigned char dectbl[])
+{
+    const uint8_t *cur = src;
+    unsigned char *ptr = dst;
+    uint8_t c          = 0;
+    uint32_t bit24     = 1;
+    size_t i           = 0;
+
+    // Validate input parameters
+    if (!src || !dst || !dectbl) {
+        errno = EINVAL;
+        return 0;
+    }
+
+    // Check if we have enough space (including null terminator)
+    if (dstlen < b64m_decoded_len(srclen) + 1) {
+        errno = ENOSPC;
+        return 0;
+    }
+
+    // Handle empty input
+    if (srclen == 0) {
+        *dst = '\0';
+        return 0;
+    }
+
+    // 24-bit accumulator with sentinel bit for tracking completeness
+    // Bit layout: [sentinel][23..18][17..12][11..6][5..0]
+    // Each base64 char contributes 6 bits, 4 chars = 24 bits = 3 bytes
+    bit24 = 1; // Start with sentinel bit at position 0
+    for (; i < srclen; i++) {
+        // ignore padding
+        if (*cur == '=') {
+            // check remaining characters with proper bounds checking
+            for (i++; i < srclen; i++) {
+                cur++;
+                // remaining characters must be '='
+                if (*cur != '=') {
+                    errno = EINVAL;
+                    return 0;
+                }
+            }
+            break;
+        }
+        // invalid character (valid base64 decode values are 0-63)
+        else if ((c = dectbl[*cur]) > 63) {
+            errno = EINVAL;
+            return 0;
+        }
+        // Accumulate 6 bits from current base64 character
+        // bit24 layout after each character:
+        // 1st char: [1][000000][000000][000000][AAAAAA]
+        // 2nd char: [1][000000][000000][AAAAAA][BBBBBB]
+        // 3rd char: [1][000000][AAAAAA][BBBBBB][CCCCCC]
+        // 4th char: [1][AAAAAA][BBBBBB][CCCCCC][DDDDDD] -> triggers
+        // extraction
+        bit24 = bit24 << 6 | c;
+        // Check if sentinel bit reached position 24 (4 chars accumulated)
+        if (bit24 & 0x1000000) {
+            // Extract 3 bytes from accumulated 24 bits
+            // [AAAAAA|BBBBBB] [BBBBBB|CCCCCC] [CCCCCC|DDDDDD]
+            *ptr++ =
+                (unsigned char)(bit24 >> 16); // Extract first byte: [AAAAAA|BB]
+            *ptr++ =
+                (unsigned char)(bit24 >> 8); // Extract second byte: [BBBB|CCCC]
+            *ptr++ = (unsigned char)(bit24); // Extract third byte: [CC|DDDDDD]
+            bit24  = 1; // Reset with sentinel bit at position 0
+        }
+        cur++;
+    }
+
+    // Handle remaining bits for incomplete groups (due to padding)
+    // Check sentinel bit position to determine how many chars were
+    // accumulated
+    if (bit24 & 0x40000) {
+        // 3 base64 chars accumulated: [1][AAAAAA][BBBBBB][CCCCCC][000000]
+        // 18 valid bits = 2 complete bytes + 2 padding bits (ignored)
+        // Extract: [AAAAAA|BBBBBB] [BBBBBB|CCCCCC]
+        *ptr++ = (unsigned char)(bit24 >>
+                                 10); // First byte: bits [17..10] = [AAAAAA|BB]
+        *ptr++ = (unsigned char)(bit24 >>
+                                 2); // Second byte: bits [9..2] = [BBBB|CCCC]
+        // Ignore bits [1..0] as padding
+    } else if (bit24 & 0x1000) {
+        // 2 base64 chars accumulated: [1][AAAAAA][BBBBBB][000000][000000]
+        // 12 valid bits = 1 complete byte + 4 padding bits (ignored)
+        // Extract: [AAAAAA|BBBBBB]
+        *ptr++ = (unsigned char)(bit24 >>
+                                 4); // Single byte: bits [11..4] = [AAAAAA|BB]
+        // Ignore bits [3..0] as padding
+    }
+    // If bit24 & 0x40 (only 1 char), ignore as invalid incomplete group
+
+    // Null terminate for safety
+    *ptr = 0;
+
+    // Return decoded length
+    return (size_t)(ptr - dst);
+}
+
+/**
+ * @name Convenience Macros for Buffer Decoding
+ * @{
+ */
+
+/** @brief Decode to user buffer using standard Base64 format
+ *  @param src Input base64 string
+ *  @param srclen Input string length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of decoded data or 0 on error */
+#define b64m_decode_to_buffer_std(src, srclen, dst, dstlen)                    \
+    b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_STDDEC)
+
+/** @brief Decode to user buffer using URL-safe Base64 format
+ *  @param src Input base64 string
+ *  @param srclen Input string length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of decoded data or 0 on error */
+#define b64m_decode_to_buffer_url(src, srclen, dst, dstlen)                    \
+    b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_URLDEC)
+
+/** @brief Decode to user buffer using mixed Base64 format (handles both
+ * standard and URL-safe)
+ *  @param src Input base64 string
+ *  @param srclen Input string length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of decoded data or 0 on error */
+#define b64m_decode_to_buffer_mix(src, srclen, dst, dstlen)                    \
+    b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_DEC)
+
+/** @} */
+
+/**
  * @brief Decode base64 string to binary data
  *
  * @param src Input base64 string to decode (must not be NULL)
