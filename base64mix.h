@@ -256,117 +256,30 @@ static inline size_t b64m_encode_to_buffer(const unsigned char *src,
 static inline char *b64m_encode(const unsigned char *src, size_t *len,
                                 const unsigned char enctbl[])
 {
-    unsigned char *res = NULL;
-    size_t tail        = 0;
-    size_t bytes       = 0;
+    char *res     = NULL;
+    size_t buflen = 0;
 
     // Validate input parameters
     if (!src || !len || !enctbl) {
         errno = EINVAL;
         return NULL;
     }
-    tail = *len;
 
-    // return empty string for zero length input
-    if (tail == 0) {
-        if ((res = malloc(1))) {
-            *res = '\0';
-            *len = 0;
-        }
-        return (char *)res;
-    }
-
-    // Check for overflow before calculation
-    if (tail > (SIZE_MAX / 4)) {
+    // Calculate required buffer size using zero-allocation helper
+    buflen = b64m_encoded_len(*len, enctbl);
+    // Check for overflow (buflen of 0 indicates overflow)
+    if (buflen == 0) {
         errno = ERANGE;
         return NULL;
     }
 
-    // Base64 encoding: 3 input bytes -> 4 output bytes
-    // Formula: (len * 4 + 2) / 3 handles padding correctly
-    bytes = (tail * 4 + 2) / 3;
-
-    // Add padding only if requested (standard base64)
-    if (enctbl == BASE64MIX_STDENC) {
-        // Round up to nearest multiple of 4 (base64 padding requirement)
-        size_t remainder = bytes % 4;
-        if (remainder) {
-            bytes += 4 - remainder;
-        }
+    // Allocate buffer
+    if ((res = malloc(buflen))) {
+        // Use zero-allocation version to do the actual encoding
+        // Update length with actual encoded length
+        *len = b64m_encode_to_buffer(src, *len, res, buflen, enctbl);
     }
-
-    // Final overflow check
-    if (bytes < tail) {
-        errno = ERANGE;
-        return NULL;
-    }
-
-    if ((res = malloc(bytes + 1))) {
-        const uint8_t *cur = src;
-        unsigned char *ptr = res;
-        uint8_t c          = (uint8_t)-1;
-        uint8_t state      = 0;
-        size_t i           = 0;
-
-        for (; i < tail; i++) {
-            switch (state) {
-            case 0:
-                // State 0: Process first byte of 3-byte input group
-                // Produces: first complete base64 character + partial second
-                // character Input:  [AAAAAABB] Output: [AAAAAA] -> first base64
-                // char, [BB????] -> partial second char
-                c      = (*cur >> 2) & 0x3fU; // Extract upper 6 bits: AAAAAA
-                *ptr++ = enctbl[c];
-                c = (*cur & 0x3U) << 4; // Extract lower 2 bits: BB, shift left
-                state = 1;
-                break;
-            case 1:
-                // State 1: Process second byte of 3-byte input group
-                // Completes: second base64 character + partial third character
-                // Input:  [CCCCDDDD]
-                // Combine: [BB????] + [CCCC] -> [BBCCCC] -> second base64 char
-                // Prepare: [DDDD??] -> partial third char
-                c |= (*cur >> 4) & 0xfU; // Combine: BB + CCCC -> BBCCCC
-                *ptr++ = enctbl[c];
-                // Extract lower 4 bits: DDDD, shift left
-                c      = (*cur & 0xfU) << 2;
-                state  = 2;
-                break;
-            case 2:
-                // State 2: Process third byte of 3-byte input group
-                // Completes: third base64 character + fourth base64 character
-                // Input:  [EEFFFFFFFF]
-                // Combine: [DDDD??] + [EE] -> [DDDDEE] -> third base64 char
-                // Extract: [FFFFFF] -> fourth base64 char
-                // Result: 3 input bytes -> 4 output base64 characters
-                c |= (*cur >> 6) & 0x3U; // Combine: DDDD + EE -> DDDDEE
-                *ptr++ = enctbl[c];
-                c      = *cur & 0x3fU; // Extract lower 6 bits: FFFFFF
-                *ptr++ = enctbl[c];
-                // Reset state and restart 3-byte cycle
-                c      = (uint8_t)-1;
-                state  = 0;
-                break;
-            }
-            cur++;
-        }
-
-        // append last bit if there's remaining data
-        if (c != (uint8_t)-1) {
-            *ptr++ = enctbl[c];
-        }
-        // append padding if standard base64
-        if (enctbl == BASE64MIX_STDENC) {
-            for (i = (size_t)(ptr - res); i < bytes; i++) {
-                *ptr++ = '=';
-            }
-        }
-        // set result length
-        *len = (size_t)(ptr - res);
-        *ptr = 0;
-    }
-
-    return (char *)res;
+    return res;
 }
 /**
  * @name Convenience Macros
