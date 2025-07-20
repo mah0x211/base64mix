@@ -166,18 +166,50 @@ static inline size_t b64m_encode_to_buffer(const unsigned char *src,
         return 0;
     }
 
-    // Process complete 3-byte groups
+    // Process complete 3-byte groups with 4-block unrolling optimization
+
+#define ENCODE_BLOCK(v, out)                                                   \
+    do {                                                                       \
+        (out)[0] = enctbl[(v >> 18) & 0x3f];                                   \
+        (out)[1] = enctbl[(v >> 12) & 0x3f];                                   \
+        (out)[2] = enctbl[(v >> 6) & 0x3f];                                    \
+        (out)[3] = enctbl[v & 0x3f];                                           \
+    } while (0)
+
     i = 0;
+    // Process 4 blocks (12 bytes -> 16 chars) at a time for better performance
+    size_t blocks_4 =
+        (srclen / 12) * 12; // Number of bytes in complete 4-block groups
+    for (; i < blocks_4; i += 12) {
+        // Process 4 blocks simultaneously
+        uint32_t val0 =
+            ((uint32_t)cur[0] << 16) | ((uint32_t)cur[1] << 8) | cur[2];
+        uint32_t val1 =
+            ((uint32_t)cur[3] << 16) | ((uint32_t)cur[4] << 8) | cur[5];
+        uint32_t val2 =
+            ((uint32_t)cur[6] << 16) | ((uint32_t)cur[7] << 8) | cur[8];
+        uint32_t val3 =
+            ((uint32_t)cur[9] << 16) | ((uint32_t)cur[10] << 8) | cur[11];
+
+        ENCODE_BLOCK(val0, ptr);
+        ENCODE_BLOCK(val1, ptr + 4);
+        ENCODE_BLOCK(val2, ptr + 8);
+        ENCODE_BLOCK(val3, ptr + 12);
+
+        ptr += 16; // Move pointer forward by 16 bytes
+        cur += 12; // Move input pointer forward by 12 bytes
+    }
+
+    // Process remaining single blocks (3 bytes -> 4 chars)
     for (size_t n = (srclen / 3) * 3; i < n; i += 3) {
-        // Convert 3x 8bit source bytes into 4 bytes
         uint32_t val =
             ((uint32_t)cur[0] << 16) | ((uint32_t)cur[1] << 8) | cur[2];
-        *ptr++ = enctbl[(val >> 18) & 0x3fU];
-        *ptr++ = enctbl[(val >> 12) & 0x3fU];
-        *ptr++ = enctbl[(val >> 6) & 0x3fU];
-        *ptr++ = enctbl[val & 0x3fU];
+        ENCODE_BLOCK(val, ptr);
+        ptr += 4;
         cur += 3;
     }
+
+#undef ENCODE_BLOCK
 
     // Handle remaining bytes
     remain = srclen - i;
