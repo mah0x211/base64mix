@@ -64,6 +64,63 @@ static const unsigned char BASE64MIX_URLENC[64] = {
 /** @} */
 
 /**
+ * @brief Calculate encoded length for base64 encoding
+ *
+ * @param len Length of input data to encode
+ * @param enctbl Encoding table (BASE64MIX_STDENC or BASE64MIX_URLENC)
+ *
+ * @return Required buffer size for encoded output (including null terminator)
+ *
+ * @note For standard base64, includes padding to nearest 4-byte boundary
+ * @note For URL-safe base64, no padding is added
+ */
+static inline size_t b64m_encoded_len(size_t len, const unsigned char enctbl[])
+{
+    size_t enclen = 0;
+
+    if (len == 0) {
+        return 1; // Just null terminator
+    } else if (len > (SIZE_MAX / 4)) {
+        return 0; // Indicate overflow error
+    }
+
+    // Base64 encoding: 3 input bytes -> 4 output bytes
+    enclen = (len * 4 + 2) / 3;
+
+    // Add padding only if requested (standard base64)
+    if (enctbl == BASE64MIX_STDENC) {
+        // Round up to nearest multiple of 4 (base64 padding requirement)
+        size_t remainder = enclen % 4;
+        if (remainder) {
+            enclen += 4 - remainder;
+        }
+    }
+
+    // Final overflow check
+    if (enclen < len) {
+        return 0; // Indicate overflow error
+    }
+    return enclen + 1; // +1 for null terminator
+}
+
+/**
+ * @name Convenience Macros for Buffer Size Calculation
+ * @{
+ */
+
+/** @brief Calculate buffer size needed for standard Base64 encoding
+ *  @param len Input data length
+ *  @return Required buffer size including null terminator */
+#define b64m_encoded_len_std(len) b64m_encoded_len(len, BASE64MIX_STDENC)
+
+/** @brief Calculate buffer size needed for URL-safe Base64 encoding
+ *  @param len Input data length
+ *  @return Required buffer size including null terminator */
+#define b64m_encoded_len_url(len) b64m_encoded_len(len, BASE64MIX_URLENC)
+
+/** @} */
+
+/**
  * @brief Encode binary data to base64 string
  *
  * @param src Input binary data to encode (must not be NULL)
