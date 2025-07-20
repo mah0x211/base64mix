@@ -56,16 +56,34 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
                                 const unsigned char enctbl[])
 {
     unsigned char *res = NULL;
-    size_t tail        = *len;
-    size_t bytes       = (8.0 / 6.0 * (double)tail);
-    size_t surplus     = bytes % 4;
+    size_t tail        = 0;
+    size_t bytes       = 0;
 
-    // add padding bytes
-    if (surplus) {
-        bytes += 4 - surplus;
+    tail = *len;
+
     }
-    // no-space for null-term or wrap around
-    if (bytes == SIZE_MAX || bytes < tail) {
+
+    // Check for overflow before calculation
+    if (tail > (SIZE_MAX / 4)) {
+        errno = ERANGE;
+        return NULL;
+    }
+
+    // Base64 encoding: 3 input bytes -> 4 output bytes
+    // Formula: (len * 4 + 2) / 3 handles padding correctly
+    bytes = (tail * 4 + 2) / 3;
+
+    // Add padding only if requested (standard base64)
+    if (enctbl == BASE64MIX_STDENC) {
+        // Round up to nearest multiple of 4 (base64 padding requirement)
+        size_t remainder = bytes % 4;
+        if (remainder) {
+            bytes += 4 - remainder;
+        }
+    }
+
+    // Final overflow check
+    if (bytes < tail) {
         errno = ERANGE;
         return NULL;
     }
@@ -220,7 +238,11 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
                                 const unsigned char dectbl[])
 {
     unsigned char *res = NULL;
-    size_t bytes       = ((double)*len / (8.0 / 6.0));
+    size_t bytes       = 0;
+
+    // Base64 decoding: 4 input bytes -> 3 output bytes (maximum)
+    // Use integer arithmetic for precision and performance
+    bytes = (*len * 3) / 4;
 
     if ((res = malloc(bytes + 1))) {
         const unsigned char *cur = src;
