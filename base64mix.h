@@ -129,11 +129,11 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
     }
 
     if ((res = malloc(bytes + 1))) {
-        const unsigned char *cur = src;
-        unsigned char *ptr       = res;
-        uint8_t c                = -1;
-        uint8_t state            = 0;
-        size_t i                 = 0;
+        const uint8_t *cur = src;
+        unsigned char *ptr = res;
+        uint8_t c          = (uint8_t)-1;
+        uint8_t state      = 0;
+        size_t i           = 0;
 
         for (; i < tail; i++) {
             switch (state) {
@@ -142,9 +142,9 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
                 // Produces: first complete base64 character + partial second
                 // character Input:  [AAAAAABB] Output: [AAAAAA] -> first base64
                 // char, [BB????] -> partial second char
-                c      = (*cur >> 2) & 0x3f; // Extract upper 6 bits: AAAAAA
+                c      = (*cur >> 2) & 0x3fU; // Extract upper 6 bits: AAAAAA
                 *ptr++ = enctbl[c];
-                c = (*cur & 0x3) << 4; // Extract lower 2 bits: BB, shift left
+                c = (*cur & 0x3U) << 4; // Extract lower 2 bits: BB, shift left
                 state = 1;
                 break;
             case 1:
@@ -153,10 +153,11 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
                 // Input:  [CCCCDDDD]
                 // Combine: [BB????] + [CCCC] -> [BBCCCC] -> second base64 char
                 // Prepare: [DDDD??] -> partial third char
-                c |= (*cur >> 4) & 0xf; // Combine: BB + CCCC -> BBCCCC
+                c |= (*cur >> 4) & 0xfU; // Combine: BB + CCCC -> BBCCCC
                 *ptr++ = enctbl[c];
-                c = (*cur & 0xf) << 2; // Extract lower 4 bits: DDDD, shift left
-                state = 2;
+                // Extract lower 4 bits: DDDD, shift left
+                c      = (*cur & 0xfU) << 2;
+                state  = 2;
                 break;
             case 2:
                 // State 2: Process third byte of 3-byte input group
@@ -165,12 +166,12 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
                 // Combine: [DDDD??] + [EE] -> [DDDDEE] -> third base64 char
                 // Extract: [FFFFFF] -> fourth base64 char
                 // Result: 3 input bytes -> 4 output base64 characters
-                c |= (*cur >> 6) & 0x3; // Combine: DDDD + EE -> DDDDEE
+                c |= (*cur >> 6) & 0x3U; // Combine: DDDD + EE -> DDDDEE
                 *ptr++ = enctbl[c];
-                c      = *cur & 0x3f; // Extract lower 6 bits: FFFFFF
+                c      = *cur & 0x3fU; // Extract lower 6 bits: FFFFFF
                 *ptr++ = enctbl[c];
                 // Reset state and restart 3-byte cycle
-                c      = -1;
+                c      = (uint8_t)-1;
                 state  = 0;
                 break;
             }
@@ -183,12 +184,12 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
         }
         // append padding if standard base64
         if (enctbl == BASE64MIX_STDENC) {
-            for (i = ptr - res; i < bytes; i++) {
+            for (i = (size_t)(ptr - res); i < bytes; i++) {
                 *ptr++ = '=';
             }
         }
         // set result length
-        *len = ptr - res;
+        *len = (size_t)(ptr - res);
         *ptr = 0;
     }
 
@@ -361,15 +362,15 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
     bytes = (*len * 3) / 4;
 
     if ((res = malloc(bytes + 1))) {
-        const unsigned char *cur = src;
-        unsigned char *ptr       = res;
-        uint8_t c                = 0;
+        const uint8_t *cur = src;
+        unsigned char *ptr = res;
+        uint8_t c          = 0;
         // 24-bit accumulator with sentinel bit for tracking completeness
         // Bit layout: [sentinel][23..18][17..12][11..6][5..0]
         // Each base64 char contributes 6 bits, 4 chars = 24 bits = 3 bytes
-        uint32_t bit24           = 1; // Start with sentinel bit at position 0
-        size_t tail              = *len;
-        size_t i                 = 0;
+        uint32_t bit24     = 1; // Start with sentinel bit at position 0
+        size_t tail        = *len;
+        size_t i           = 0;
 
         for (; i < tail; i++) {
             // ignore padding
@@ -432,7 +433,7 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
         // If bit24 & 0x40 (only 1 char), ignore as invalid incomplete group
         *ptr = 0;
         // set result length
-        *len = ptr - res;
+        *len = (size_t)(ptr - res);
     }
 
     return (char *)res;
