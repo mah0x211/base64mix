@@ -66,6 +66,13 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
     }
     tail = *len;
 
+    // return empty string for zero length input
+    if (tail == 0) {
+        if ((res = malloc(1))) {
+            *res = '\0';
+            *len = 0;
+        }
+        return (char *)res;
     }
 
     // Check for overflow before calculation
