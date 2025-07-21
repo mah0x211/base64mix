@@ -460,7 +460,9 @@ static inline size_t b64m_decoded_len(size_t enclen)
         return 0;
     }
     // Base64 decoding: 4 input chars -> 3 output bytes (maximum)
-    // Remove padding characters from calculation
+    // For buffer allocation, we use a simple calculation that ensures we have
+    // enough space. This may slightly overestimate but guarantees sufficient
+    // buffer size.
     return (enclen * 3) / 4;
 }
 
@@ -491,11 +493,10 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
                                            size_t dstlen,
                                            const unsigned char dectbl[])
 {
-    const uint8_t *cur = src;
     unsigned char *ptr = dst;
-    uint8_t c          = 0;
-    uint32_t bit24     = 1;
-    size_t i           = 0;
+    const uint8_t *cur = src;
+    const uint8_t *end = src + srclen;
+    size_t len         = 0;
 
     // Validate input parameters
     if (!src || !dst || !dectbl) {
@@ -515,72 +516,132 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         return 0;
     }
 
-    // 24-bit accumulator with sentinel bit for tracking completeness
-    // Bit layout: [sentinel][23..18][17..12][11..6][5..0]
-    // Each base64 char contributes 6 bits, 4 chars = 24 bits = 3 bytes
-    bit24 = 1; // Start with sentinel bit at position 0
-    for (; i < srclen; i++) {
-        // ignore padding
-        if (*cur == '=') {
-            // check remaining characters with proper bounds checking
-            for (i++; i < srclen; i++) {
-                cur++;
-                // remaining characters must be '='
-                if (*cur != '=') {
-                    errno = EINVAL;
-                    return 0;
-                }
-            }
-            break;
+    // Optimized single-pass padding calculation and validation
+    // Scan from end to beginning once, validating as we go
+    // Single pass: count and validate padding characters from the end
+    while (src < end && end[-1] == '=') {
+        end--;
+        // Early exit on too many padding characters
+        if ((srclen - (end - src)) > 2) {
+            errno = EINVAL; // Too many padding characters
+            return 0;
         }
-        // invalid character (valid base64 decode values are 0-63)
-        else if ((c = dectbl[*cur]) > 63) {
+    }
+
+    // At this point, characters from effective_len to srclen are all '='
+    // No need for additional validation loop - single pass guaranteed
+    // correctness
+
+    // Process 8-character blocks (8 chars -> 6 bytes in one operation)
+    len = end - cur;
+    for (const uint8_t *tail = cur + (len / 8) * 8; cur < tail; cur += 8) {
+        // Decode all 8 characters at once
+        uint8_t d0 = dectbl[cur[0]];
+        uint8_t d1 = dectbl[cur[1]];
+        uint8_t d2 = dectbl[cur[2]];
+        uint8_t d3 = dectbl[cur[3]];
+        uint8_t d4 = dectbl[cur[4]];
+        uint8_t d5 = dectbl[cur[5]];
+        uint8_t d6 = dectbl[cur[6]];
+        uint8_t d7 = dectbl[cur[7]];
+
+        // Check for invalid characters using OR operation
+        if ((d0 | d1 | d2 | d3 | d4 | d5 | d6 | d7) > 63) {
             errno = EINVAL;
             return 0;
         }
-        // Accumulate 6 bits from current base64 character
-        // bit24 layout after each character:
-        // 1st char: [1][000000][000000][000000][AAAAAA]
-        // 2nd char: [1][000000][000000][AAAAAA][BBBBBB]
-        // 3rd char: [1][000000][AAAAAA][BBBBBB][CCCCCC]
-        // 4th char: [1][AAAAAA][BBBBBB][CCCCCC][DDDDDD] -> triggers
-        // extraction
-        bit24 = bit24 << 6 | c;
-        // Check if sentinel bit reached position 24 (4 chars accumulated)
-        if (bit24 & 0x1000000) {
-            // Extract 3 bytes from accumulated 24 bits
-            // [AAAAAA|BBBBBB] [BBBBBB|CCCCCC] [CCCCCC|DDDDDD]
-            *ptr++ =
-                (unsigned char)(bit24 >> 16); // Extract first byte: [AAAAAA|BB]
-            *ptr++ =
-                (unsigned char)(bit24 >> 8); // Extract second byte: [BBBB|CCCC]
-            *ptr++ = (unsigned char)(bit24); // Extract third byte: [CC|DDDDDD]
-            bit24  = 1; // Reset with sentinel bit at position 0
-        }
-        cur++;
+
+        // Combine 8 characters into a 64-bit value
+        uint64_t v = ((uint64_t)d0 << 58) | ((uint64_t)d1 << 52) |
+                     ((uint64_t)d2 << 46) | ((uint64_t)d3 << 40) |
+                     ((uint64_t)d4 << 34) | ((uint64_t)d5 << 28) |
+                     ((uint64_t)d6 << 22) | ((uint64_t)d7 << 16);
+
+        // Extract 6 bytes from the 64-bit value
+        // Now we can use cleaner shift amounts
+        ptr[0] = (unsigned char)(v >> 56);
+        ptr[1] = (unsigned char)(v >> 48);
+        ptr[2] = (unsigned char)(v >> 40);
+        ptr[3] = (unsigned char)(v >> 32);
+        ptr[4] = (unsigned char)(v >> 24);
+        ptr[5] = (unsigned char)(v >> 16);
+        // Move pointers forward
+        ptr += 6;
     }
 
-    // Handle remaining bits for incomplete groups (due to padding)
-    // Check sentinel bit position to determine how many chars were
-    // accumulated
-    if (bit24 & 0x40000) {
-        // 3 base64 chars accumulated: [1][AAAAAA][BBBBBB][CCCCCC][000000]
-        // 18 valid bits = 2 complete bytes + 2 padding bits (ignored)
-        // Extract: [AAAAAA|BBBBBB] [BBBBBB|CCCCCC]
-        *ptr++ = (unsigned char)(bit24 >>
-                                 10); // First byte: bits [17..10] = [AAAAAA|BB]
-        *ptr++ = (unsigned char)(bit24 >>
-                                 2); // Second byte: bits [9..2] = [BBBB|CCCC]
-        // Ignore bits [1..0] as padding
-    } else if (bit24 & 0x1000) {
-        // 2 base64 chars accumulated: [1][AAAAAA][BBBBBB][000000][000000]
-        // 12 valid bits = 1 complete byte + 4 padding bits (ignored)
-        // Extract: [AAAAAA|BBBBBB]
-        *ptr++ = (unsigned char)(bit24 >>
-                                 4); // Single byte: bits [11..4] = [AAAAAA|BB]
-        // Ignore bits [3..0] as padding
+    // Process remaining 4-character blocks
+    len = end - cur;
+    for (const uint8_t *tail = cur + (len / 4) * 4; cur < tail; cur += 4) {
+        // Decode 4 characters at once
+        uint8_t d1 = dectbl[cur[0]];
+        uint8_t d2 = dectbl[cur[1]];
+        uint8_t d3 = dectbl[cur[2]];
+        uint8_t d4 = dectbl[cur[3]];
+
+        // Check if any character is invalid (single bitwise OR operation)
+        if ((d1 | d2 | d3 | d4) > 63) {
+            errno = EINVAL;
+            return 0;
+        }
+
+        // Direct decode: 4 chars (24 bits) -> 3 bytes
+        uint32_t v = (d1 << 26) | (d2 << 20) | (d3 << 14) | (d4 << 8);
+        // Extract 3 bytes from the 32-bit value
+        ptr[0]     = (unsigned char)(v >> 24);
+        ptr[1]     = (unsigned char)(v >> 16);
+        ptr[2]     = (unsigned char)(v >> 8);
+        // Move pointers forward
+        ptr += 3;
     }
-    // If bit24 & 0x40 (only 1 char), ignore as invalid incomplete group
+
+    // Handle remaining characters (1-3 chars) directly without accumulator
+    // This eliminates conditional branching in loops and reduces overhead
+    len = end - cur;
+    if (len >= 3) {
+        // Process 3 characters directly -> 2 bytes output
+        // Batch validate all 3 characters first
+        unsigned char d0 = dectbl[cur[0]];
+        unsigned char d1 = dectbl[cur[1]];
+        unsigned char d2 = dectbl[cur[2]];
+
+        // Check if any character is invalid (single bitwise OR operation)
+        if ((d0 | d1 | d2) > 63) {
+            errno = EINVAL;
+            return 0;
+        }
+
+        // Direct decode: 3 chars (18 bits) -> 2 bytes + 2 padding bits
+        // [AAAAAA][BBBBBB][CCCCCC] -> [AAAAAA|BB][BBBB|CCCC|CC]
+        uint32_t val = (d0 << 12) | (d1 << 6) | d2;
+        ptr[0]       = (unsigned char)(val >> 10); // First byte: [AAAAAA|BB]
+        ptr[1]       = (unsigned char)(val >> 2);  // Second byte: [BBBB|CCCC]
+        ptr += 2;
+        cur += 3;
+        len = end - cur;
+    }
+
+    if (len >= 2) {
+        // Process 2 characters directly -> 1 byte output
+        // Batch validate both characters
+        unsigned char d0 = dectbl[cur[0]];
+        unsigned char d1 = dectbl[cur[1]];
+
+        // Check if any character is invalid
+        if ((d0 | d1) > 63) {
+            errno = EINVAL;
+            return 0;
+        }
+
+        // Direct decode: 2 chars (12 bits) -> 1 byte + 4 padding bits
+        // [AAAAAA][BBBBBB] -> [AAAAAA|BB]
+        uint32_t val = (d0 << 6) | d1;
+        ptr[0]       = (unsigned char)(val >> 4); // Single byte: [AAAAAA|BB]
+        ptr += 1;
+        cur += 2;
+        len = end - cur;
+    }
+
+    // If 1 character remains, ignore it (invalid incomplete group)
 
     // Null terminate for safety
     *ptr = 0;
