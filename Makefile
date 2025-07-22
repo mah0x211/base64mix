@@ -57,7 +57,7 @@ coverage: test
 	@mkdir -p $(COV_DIR)
 	@lcov --capture --directory . --output-file $(COV_INFO) 2>/dev/null || echo "lcov not available, using gcov only"
 	@if [ -f $(COV_INFO) ]; then \
-		lcov --remove $(COV_INFO) '/usr/*' --output-file $(COV_INFO); \
+		lcov --remove $(COV_INFO) '/usr/*' 'test/*' --output-file $(COV_INFO); \
 		genhtml $(COV_INFO) --output-directory $(COV_HTML); \
 		echo "HTML coverage report generated in $(COV_HTML)/index.html"; \
 	else \

@@ -64,6 +64,178 @@ static const unsigned char BASE64MIX_URLENC[64] = {
 /** @} */
 
 /**
+ * @brief Calculate encoded length for base64 encoding
+ *
+ * @param len Length of input data to encode
+ *
+ * @return Required buffer size for encoded output
+ *
+ * @note Always returns size for padded base64 (standard format)
+ * @note This ensures sufficient buffer for both standard and URL-safe formats
+ * @note Returns SIZE_MAX on overflow
+ */
+static inline size_t b64m_encoded_len(size_t len)
+{
+    // Calculate number of 3-byte blocks
+    size_t block = len / 3 + (len % 3 != 0);
+
+    if (block > (SIZE_MAX / 4)) {
+        return SIZE_MAX; // Indicate overflow error
+    }
+
+    // Each 3-byte block becomes 4 characters in base64
+    return block * 4;
+}
+
+/**
+ * @brief Encode binary data to base64 string using user-provided buffer
+ *
+ * @param src Input binary data to encode (must not be NULL)
+ * @param srclen Length of input data
+ * @param dst Output buffer for encoded string (must not be NULL)
+ * @param dstlen Size of output buffer
+ * @param enctbl Encoding table (BASE64MIX_STDENC or BASE64MIX_URLENC)
+ *
+ * @return Length of encoded string (excluding null terminator), or 0 on error
+ *
+ * @errno EINVAL - Invalid arguments (NULL pointers)
+ * @errno ENOSPC - Output buffer too small
+ *
+ * @note Zero-allocation version: uses caller-provided buffer
+ * @note Buffer size can be calculated with b64m_encoded_len()
+ * @note Result is always null-terminated
+ */
+static inline size_t b64m_encode_to_buffer(const unsigned char *src,
+                                           size_t srclen, char *dst,
+                                           size_t dstlen,
+                                           const unsigned char enctbl[])
+{
+    const uint8_t *cur = src;
+    unsigned char *ptr = (unsigned char *)dst;
+    size_t remain      = 0;
+    size_t i           = 0;
+
+    // Validate input parameters
+    if (!src || !dst || !enctbl) {
+        errno = EINVAL;
+        return 0;
+    }
+
+    // dstlen must include +1 space for null terminator
+    if (dstlen < b64m_encoded_len(srclen)) {
+        errno = ENOSPC;
+        return 0;
+    }
+
+    // Handle empty input
+    if (srclen == 0) {
+        *dst = '\0';
+        return 0;
+    }
+
+    // Process complete 3-byte groups with 4-block unrolling optimization
+
+#define ENCODE_BLOCK(v, out)                                                   \
+    do {                                                                       \
+        (out)[0] = enctbl[(v >> 18) & 0x3f];                                   \
+        (out)[1] = enctbl[(v >> 12) & 0x3f];                                   \
+        (out)[2] = enctbl[(v >> 6) & 0x3f];                                    \
+        (out)[3] = enctbl[v & 0x3f];                                           \
+    } while (0)
+
+    i = 0;
+    // Process 4 blocks (12 bytes -> 16 chars) at a time for better performance
+    size_t blocks_4 =
+        (srclen / 12) * 12; // Number of bytes in complete 4-block groups
+    for (; i < blocks_4; i += 12) {
+        // Process 4 blocks simultaneously
+        uint32_t val0 =
+            ((uint32_t)cur[0] << 16) | ((uint32_t)cur[1] << 8) | cur[2];
+        uint32_t val1 =
+            ((uint32_t)cur[3] << 16) | ((uint32_t)cur[4] << 8) | cur[5];
+        uint32_t val2 =
+            ((uint32_t)cur[6] << 16) | ((uint32_t)cur[7] << 8) | cur[8];
+        uint32_t val3 =
+            ((uint32_t)cur[9] << 16) | ((uint32_t)cur[10] << 8) | cur[11];
+
+        ENCODE_BLOCK(val0, ptr);
+        ENCODE_BLOCK(val1, ptr + 4);
+        ENCODE_BLOCK(val2, ptr + 8);
+        ENCODE_BLOCK(val3, ptr + 12);
+
+        ptr += 16; // Move pointer forward by 16 bytes
+        cur += 12; // Move input pointer forward by 12 bytes
+    }
+
+    // Process remaining single blocks (3 bytes -> 4 chars)
+    for (size_t n = (srclen / 3) * 3; i < n; i += 3) {
+        uint32_t val =
+            ((uint32_t)cur[0] << 16) | ((uint32_t)cur[1] << 8) | cur[2];
+        ENCODE_BLOCK(val, ptr);
+        ptr += 4;
+        cur += 3;
+    }
+
+#undef ENCODE_BLOCK
+
+    // Handle remaining bytes
+    remain = srclen - i;
+    if (remain > 0) {
+        // Add the remaining small block
+        uint32_t val = (uint32_t)cur[0] << 16;
+        if (remain == 2) {
+            // If we have 2 bytes left, shift the second byte
+            val |= (uint32_t)cur[1] << 8;
+        }
+
+        // Encode the remaining bytes
+        *ptr++ = enctbl[(val >> 18) & 0x3fU];
+        *ptr++ = enctbl[(val >> 12) & 0x3fU];
+
+        // Add remaining characters and padding
+        if (remain == 2) {
+            *ptr++ = enctbl[(val >> 6) & 0x3fU];
+            if (enctbl == BASE64MIX_STDENC) {
+                *ptr++ = '=';
+            }
+        } else if (remain == 1 && enctbl == BASE64MIX_STDENC) {
+            *ptr++ = '=';
+            *ptr++ = '=';
+        }
+    }
+
+    // Null terminate
+    *ptr = '\0';
+
+    return (size_t)(ptr - (unsigned char *)dst);
+}
+
+/**
+ * @name Convenience Macros for Buffer Encoding
+ * @{
+ */
+
+/** @brief Encode to user buffer using standard Base64 format
+ *  @param src Input binary data
+ *  @param srclen Input data length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of encoded string or 0 on error */
+#define b64m_encode_to_buffer_std(src, srclen, dst, dstlen)                    \
+    b64m_encode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_STDENC)
+
+/** @brief Encode to user buffer using URL-safe Base64 format
+ *  @param src Input binary data
+ *  @param srclen Input data length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of encoded string or 0 on error */
+#define b64m_encode_to_buffer_url(src, srclen, dst, dstlen)                    \
+    b64m_encode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_URLENC)
+
+/** @} */
+
+/**
  * @brief Encode binary data to base64 string
  *
  * @param src Input binary data to encode (must not be NULL)
@@ -83,117 +255,31 @@ static const unsigned char BASE64MIX_URLENC[64] = {
 static inline char *b64m_encode(const unsigned char *src, size_t *len,
                                 const unsigned char enctbl[])
 {
-    unsigned char *res = NULL;
-    size_t tail        = 0;
-    size_t bytes       = 0;
+    char *res     = NULL;
+    size_t buflen = 0;
 
     // Validate input parameters
     if (!src || !len || !enctbl) {
         errno = EINVAL;
         return NULL;
     }
-    tail = *len;
 
-    // return empty string for zero length input
-    if (tail == 0) {
-        if ((res = malloc(1))) {
-            *res = '\0';
-            *len = 0;
-        }
-        return (char *)res;
-    }
-
-    // Check for overflow before calculation
-    if (tail > (SIZE_MAX / 4)) {
+    // Calculate required buffer size using zero-allocation helper
+    buflen = b64m_encoded_len(*len);
+    // Check for overflow (buflen of 0 indicates overflow)
+    if (buflen == SIZE_MAX) {
         errno = ERANGE;
         return NULL;
     }
 
-    // Base64 encoding: 3 input bytes -> 4 output bytes
-    // Formula: (len * 4 + 2) / 3 handles padding correctly
-    bytes = (tail * 4 + 2) / 3;
-
-    // Add padding only if requested (standard base64)
-    if (enctbl == BASE64MIX_STDENC) {
-        // Round up to nearest multiple of 4 (base64 padding requirement)
-        size_t remainder = bytes % 4;
-        if (remainder) {
-            bytes += 4 - remainder;
-        }
+    // Allocate buffer
+    buflen += 1; // +1 for null terminator
+    if ((res = malloc(buflen))) {
+        // Use zero-allocation version to do the actual encoding
+        // Update length with actual encoded length
+        *len = b64m_encode_to_buffer(src, *len, res, buflen, enctbl);
     }
-
-    // Final overflow check
-    if (bytes < tail) {
-        errno = ERANGE;
-        return NULL;
-    }
-
-    if ((res = malloc(bytes + 1))) {
-        const uint8_t *cur = src;
-        unsigned char *ptr = res;
-        uint8_t c          = (uint8_t)-1;
-        uint8_t state      = 0;
-        size_t i           = 0;
-
-        for (; i < tail; i++) {
-            switch (state) {
-            case 0:
-                // State 0: Process first byte of 3-byte input group
-                // Produces: first complete base64 character + partial second
-                // character Input:  [AAAAAABB] Output: [AAAAAA] -> first base64
-                // char, [BB????] -> partial second char
-                c      = (*cur >> 2) & 0x3fU; // Extract upper 6 bits: AAAAAA
-                *ptr++ = enctbl[c];
-                c = (*cur & 0x3U) << 4; // Extract lower 2 bits: BB, shift left
-                state = 1;
-                break;
-            case 1:
-                // State 1: Process second byte of 3-byte input group
-                // Completes: second base64 character + partial third character
-                // Input:  [CCCCDDDD]
-                // Combine: [BB????] + [CCCC] -> [BBCCCC] -> second base64 char
-                // Prepare: [DDDD??] -> partial third char
-                c |= (*cur >> 4) & 0xfU; // Combine: BB + CCCC -> BBCCCC
-                *ptr++ = enctbl[c];
-                // Extract lower 4 bits: DDDD, shift left
-                c      = (*cur & 0xfU) << 2;
-                state  = 2;
-                break;
-            case 2:
-                // State 2: Process third byte of 3-byte input group
-                // Completes: third base64 character + fourth base64 character
-                // Input:  [EEFFFFFFFF]
-                // Combine: [DDDD??] + [EE] -> [DDDDEE] -> third base64 char
-                // Extract: [FFFFFF] -> fourth base64 char
-                // Result: 3 input bytes -> 4 output base64 characters
-                c |= (*cur >> 6) & 0x3U; // Combine: DDDD + EE -> DDDDEE
-                *ptr++ = enctbl[c];
-                c      = *cur & 0x3fU; // Extract lower 6 bits: FFFFFF
-                *ptr++ = enctbl[c];
-                // Reset state and restart 3-byte cycle
-                c      = (uint8_t)-1;
-                state  = 0;
-                break;
-            }
-            cur++;
-        }
-
-        // append last bit if there's remaining data
-        if (c != (uint8_t)-1) {
-            *ptr++ = enctbl[c];
-        }
-        // append padding if standard base64
-        if (enctbl == BASE64MIX_STDENC) {
-            for (i = (size_t)(ptr - res); i < bytes; i++) {
-                *ptr++ = '=';
-            }
-        }
-        // set result length
-        *len = (size_t)(ptr - res);
-        *ptr = 0;
-    }
-
-    return (char *)res;
+    return res;
 }
 /**
  * @name Convenience Macros
@@ -325,6 +411,246 @@ static const unsigned char BASE64MIX_DEC[256] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 /**
+ * @brief Calculate decoded length for base64 decoding
+ *
+ * @param enclen Length of base64 encoded string
+ *
+ * @return Maximum buffer size needed for decoded output (excluding null
+ * terminator)
+ *
+ * @note This calculates the maximum possible decoded length
+ * @note Actual decoded length may be smaller due to padding
+ * @note Use this for buffer allocation in zero-allocation decoding
+ */
+static inline size_t b64m_decoded_len(size_t enclen)
+{
+    // Base64 decoding: 4 input chars -> 3 output bytes (maximum)
+    // For buffer allocation, we use a simple calculation that ensures we have
+    // enough space. This may slightly overestimate but guarantees sufficient
+    // buffer size.
+    return (enclen * 3) / 4;
+}
+
+/**
+ * @brief Decode base64 string to binary data using user-provided buffer
+ *
+ * @param src Input base64 string to decode (must not be NULL)
+ * @param srclen Length of input base64 string
+ * @param dst Output buffer for decoded binary data (must not be NULL)
+ * @param dstlen Size of output buffer
+ * @param dectbl Decoding table (BASE64MIX_STDDEC, BASE64MIX_URLDEC, or
+ * BASE64MIX_DEC)
+ *
+ * @return Length of decoded data (excluding null terminator), or 0 on error
+ *
+ * @errno EINVAL - Invalid arguments (NULL pointers)
+ * @errno EINVAL - Invalid base64 character encountered
+ * @errno EINVAL - Invalid padding format (non-'=' after '=')
+ * @errno ENOSPC - Output buffer too small
+ *
+ * @note Zero-allocation version: uses caller-provided buffer
+ * @note Buffer size can be calculated with b64m_decoded_len()
+ * @note Result is always null-terminated for safety
+ * @note Incomplete groups (1 char) are silently ignored as invalid
+ */
+static inline size_t b64m_decode_to_buffer(const unsigned char *src,
+                                           size_t srclen, unsigned char *dst,
+                                           size_t dstlen,
+                                           const unsigned char dectbl[])
+{
+    unsigned char *ptr = dst;
+    const uint8_t *cur = src;
+    const uint8_t *end = src + srclen;
+    size_t len         = 0;
+
+    // Validate input parameters
+    if (!src || !dst || !dectbl) {
+        errno = EINVAL;
+        return 0;
+    }
+
+    // Check if we have enough space (including null terminator)
+    if (dstlen < b64m_decoded_len(srclen) + 1) {
+        errno = ENOSPC;
+        return 0;
+    }
+
+    // Handle empty input
+    if (srclen == 0) {
+        *dst = '\0';
+        return 0;
+    }
+
+    // Optimized single-pass padding calculation and validation
+    // Scan from end to beginning once, validating as we go
+    // Single pass: count and validate padding characters from the end
+    while (src < end && end[-1] == '=') {
+        end--;
+        // Early exit on too many padding characters
+        if ((srclen - (end - src)) > 2) {
+            errno = EINVAL; // Too many padding characters
+            return 0;
+        }
+    }
+
+    // At this point, characters from effective_len to srclen are all '='
+    // No need for additional validation loop - single pass guaranteed
+    // correctness
+
+    // Process 8-character blocks (8 chars -> 6 bytes in one operation)
+    len = end - cur;
+    for (const uint8_t *tail = cur + (len / 8) * 8; cur < tail; cur += 8) {
+        // Decode all 8 characters at once
+        uint8_t d0 = dectbl[cur[0]];
+        uint8_t d1 = dectbl[cur[1]];
+        uint8_t d2 = dectbl[cur[2]];
+        uint8_t d3 = dectbl[cur[3]];
+        uint8_t d4 = dectbl[cur[4]];
+        uint8_t d5 = dectbl[cur[5]];
+        uint8_t d6 = dectbl[cur[6]];
+        uint8_t d7 = dectbl[cur[7]];
+
+        // Check for invalid characters using OR operation
+        if ((d0 | d1 | d2 | d3 | d4 | d5 | d6 | d7) > 63) {
+            errno = EINVAL;
+            return 0;
+        }
+
+        // Combine 8 characters into a 64-bit value
+        uint64_t v = ((uint64_t)d0 << 58) | ((uint64_t)d1 << 52) |
+                     ((uint64_t)d2 << 46) | ((uint64_t)d3 << 40) |
+                     ((uint64_t)d4 << 34) | ((uint64_t)d5 << 28) |
+                     ((uint64_t)d6 << 22) | ((uint64_t)d7 << 16);
+
+        // Extract 6 bytes from the 64-bit value
+        // Now we can use cleaner shift amounts
+        ptr[0] = (unsigned char)(v >> 56);
+        ptr[1] = (unsigned char)(v >> 48);
+        ptr[2] = (unsigned char)(v >> 40);
+        ptr[3] = (unsigned char)(v >> 32);
+        ptr[4] = (unsigned char)(v >> 24);
+        ptr[5] = (unsigned char)(v >> 16);
+        // Move pointers forward
+        ptr += 6;
+    }
+
+    // Process remaining 4-character blocks
+    len = end - cur;
+    for (const uint8_t *tail = cur + (len / 4) * 4; cur < tail; cur += 4) {
+        // Decode 4 characters at once
+        uint8_t d1 = dectbl[cur[0]];
+        uint8_t d2 = dectbl[cur[1]];
+        uint8_t d3 = dectbl[cur[2]];
+        uint8_t d4 = dectbl[cur[3]];
+
+        // Check if any character is invalid (single bitwise OR operation)
+        if ((d1 | d2 | d3 | d4) > 63) {
+            errno = EINVAL;
+            return 0;
+        }
+
+        // Direct decode: 4 chars (24 bits) -> 3 bytes
+        uint32_t v = (d1 << 26) | (d2 << 20) | (d3 << 14) | (d4 << 8);
+        // Extract 3 bytes from the 32-bit value
+        ptr[0]     = (unsigned char)(v >> 24);
+        ptr[1]     = (unsigned char)(v >> 16);
+        ptr[2]     = (unsigned char)(v >> 8);
+        // Move pointers forward
+        ptr += 3;
+    }
+
+    // Handle remaining characters (1-3 chars) directly without accumulator
+    // This eliminates conditional branching in loops and reduces overhead
+    len = end - cur;
+    if (len >= 3) {
+        // Process 3 characters directly -> 2 bytes output
+        // Batch validate all 3 characters first
+        unsigned char d0 = dectbl[cur[0]];
+        unsigned char d1 = dectbl[cur[1]];
+        unsigned char d2 = dectbl[cur[2]];
+
+        // Check if any character is invalid (single bitwise OR operation)
+        if ((d0 | d1 | d2) > 63) {
+            errno = EINVAL;
+            return 0;
+        }
+
+        // Direct decode: 3 chars (18 bits) -> 2 bytes + 2 padding bits
+        // [AAAAAA][BBBBBB][CCCCCC] -> [AAAAAA|BB][BBBB|CCCC|CC]
+        uint32_t val = (d0 << 12) | (d1 << 6) | d2;
+        ptr[0]       = (unsigned char)(val >> 10); // First byte: [AAAAAA|BB]
+        ptr[1]       = (unsigned char)(val >> 2);  // Second byte: [BBBB|CCCC]
+        ptr += 2;
+        cur += 3;
+        len = end - cur;
+    }
+
+    if (len >= 2) {
+        // Process 2 characters directly -> 1 byte output
+        // Batch validate both characters
+        unsigned char d0 = dectbl[cur[0]];
+        unsigned char d1 = dectbl[cur[1]];
+
+        // Check if any character is invalid
+        if ((d0 | d1) > 63) {
+            errno = EINVAL;
+            return 0;
+        }
+
+        // Direct decode: 2 chars (12 bits) -> 1 byte + 4 padding bits
+        // [AAAAAA][BBBBBB] -> [AAAAAA|BB]
+        uint32_t val = (d0 << 6) | d1;
+        ptr[0]       = (unsigned char)(val >> 4); // Single byte: [AAAAAA|BB]
+        ptr += 1;
+        cur += 2;
+        len = end - cur;
+    }
+
+    // If 1 character remains, ignore it (invalid incomplete group)
+
+    // Null terminate for safety
+    *ptr = 0;
+
+    // Return decoded length
+    return (size_t)(ptr - dst);
+}
+
+/**
+ * @name Convenience Macros for Buffer Decoding
+ * @{
+ */
+
+/** @brief Decode to user buffer using standard Base64 format
+ *  @param src Input base64 string
+ *  @param srclen Input string length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of decoded data or 0 on error */
+#define b64m_decode_to_buffer_std(src, srclen, dst, dstlen)                    \
+    b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_STDDEC)
+
+/** @brief Decode to user buffer using URL-safe Base64 format
+ *  @param src Input base64 string
+ *  @param srclen Input string length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of decoded data or 0 on error */
+#define b64m_decode_to_buffer_url(src, srclen, dst, dstlen)                    \
+    b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_URLDEC)
+
+/** @brief Decode to user buffer using mixed Base64 format (handles both
+ * standard and URL-safe)
+ *  @param src Input base64 string
+ *  @param srclen Input string length
+ *  @param dst Output buffer
+ *  @param dstlen Output buffer size
+ *  @return Length of decoded data or 0 on error */
+#define b64m_decode_to_buffer_mix(src, srclen, dst, dstlen)                    \
+    b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_DEC)
+
+/** @} */
+
+/**
  * @brief Decode base64 string to binary data
  *
  * @param src Input base64 string to decode (must not be NULL)
@@ -349,7 +675,7 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
                                 const unsigned char dectbl[])
 {
     unsigned char *res = NULL;
-    size_t bytes       = 0;
+    size_t buflen      = 0;
 
     // Validate input parameters
     if (!src || !len || !dectbl) {
@@ -357,85 +683,18 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
         return NULL;
     }
 
-    // Base64 decoding: 4 input bytes -> 3 output bytes (maximum)
-    // Use integer arithmetic for precision and performance
-    bytes = (*len * 3) / 4;
-
-    if ((res = malloc(bytes + 1))) {
-        const uint8_t *cur = src;
-        unsigned char *ptr = res;
-        uint8_t c          = 0;
-        // 24-bit accumulator with sentinel bit for tracking completeness
-        // Bit layout: [sentinel][23..18][17..12][11..6][5..0]
-        // Each base64 char contributes 6 bits, 4 chars = 24 bits = 3 bytes
-        uint32_t bit24     = 1; // Start with sentinel bit at position 0
-        size_t tail        = *len;
-        size_t i           = 0;
-
-        for (; i < tail; i++) {
-            // ignore padding
-            if (*cur == '=') {
-                // check remaining characters with proper bounds checking
-                for (i++; i < tail; i++) {
-                    cur++;
-                    // remaining characters must be '='
-                    if (*cur != '=') {
-                        free((void *)res);
-                        errno = EINVAL;
-                        return NULL;
-                    }
-                }
-                break;
-            }
-            // invalid character (valid base64 decode values are 0-63)
-            else if ((c = dectbl[*cur]) > 63) {
-                free((void *)res);
-                errno = EINVAL;
-                return NULL;
-            }
-            // Accumulate 6 bits from current base64 character
-            // bit24 layout after each character:
-            // 1st char: [1][000000][000000][000000][AAAAAA]
-            // 2nd char: [1][000000][000000][AAAAAA][BBBBBB]
-            // 3rd char: [1][000000][AAAAAA][BBBBBB][CCCCCC]
-            // 4th char: [1][AAAAAA][BBBBBB][CCCCCC][DDDDDD] -> triggers
-            // extraction
-            bit24 = bit24 << 6 | c;
-            // Check if sentinel bit reached position 24 (4 chars accumulated)
-            if (bit24 & 0x1000000) {
-                // Extract 3 bytes from accumulated 24 bits
-                // [AAAAAA|BBBBBB] [BBBBBB|CCCCCC] [CCCCCC|DDDDDD]
-                *ptr++ = bit24 >> 16; // Extract first byte: [AAAAAA|BB]
-                *ptr++ = bit24 >> 8;  // Extract second byte: [BBBB|CCCC]
-                *ptr++ = bit24;       // Extract third byte: [CC|DDDDDD]
-                bit24  = 1;           // Reset with sentinel bit at position 0
-            }
-            cur++;
+    // Calculate required buffer size using zero-allocation helper
+    buflen = b64m_decoded_len(*len) + 1; // +1 for null terminator
+    if ((res = malloc(buflen))) {
+        // Use zero-allocation version to do the actual decoding
+        // Update length with actual decoded length
+        *len = b64m_decode_to_buffer(src, *len, res, buflen, dectbl);
+        if (*len == 0 && errno != 0) {
+            // Error occurred in decoding
+            free(res);
+            return NULL;
         }
-
-        // Handle remaining bits for incomplete groups (due to padding)
-        // Check sentinel bit position to determine how many chars were
-        // accumulated
-        if (bit24 & 0x40000) {
-            // 3 base64 chars accumulated: [1][AAAAAA][BBBBBB][CCCCCC][000000]
-            // 18 valid bits = 2 complete bytes + 2 padding bits (ignored)
-            // Extract: [AAAAAA|BBBBBB] [BBBBBB|CCCCCC]
-            *ptr++ = bit24 >> 10; // First byte: bits [17..10] = [AAAAAA|BB]
-            *ptr++ = bit24 >> 2;  // Second byte: bits [9..2] = [BBBB|CCCC]
-            // Ignore bits [1..0] as padding
-        } else if (bit24 & 0x1000) {
-            // 2 base64 chars accumulated: [1][AAAAAA][BBBBBB][000000][000000]
-            // 12 valid bits = 1 complete byte + 4 padding bits (ignored)
-            // Extract: [AAAAAA|BBBBBB]
-            *ptr++ = bit24 >> 4; // Single byte: bits [11..4] = [AAAAAA|BB]
-            // Ignore bits [3..0] as padding
-        }
-        // If bit24 & 0x40 (only 1 char), ignore as invalid incomplete group
-        *ptr = 0;
-        // set result length
-        *len = (size_t)(ptr - res);
     }
-
     return (char *)res;
 }
 
