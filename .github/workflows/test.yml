@@ -23,8 +23,9 @@ jobs:
         make coverage
     -
       name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
+        disable_search: true
         files: coverage/coverage.info
