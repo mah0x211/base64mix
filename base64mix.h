@@ -460,7 +460,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
 {
     unsigned char *ptr = dst;
     const uint8_t *cur = src;
-    const uint8_t *end = src + srclen;
+    const uint8_t *end = NULL;
     size_t len         = 0;
 
     // Validate input parameters
@@ -468,6 +468,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         errno = EINVAL;
         return 0;
     }
+    end = src + srclen;
 
     // Check if we have enough space (including null terminator)
     if (dstlen < b64m_decoded_len(srclen) + 1) {
