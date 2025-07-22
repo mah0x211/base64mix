@@ -21,7 +21,6 @@ static void test_invalid_base64_characters(void);
 static void test_invalid_padding_format(void);
 static void test_size_overflow_protection(void);
 static void test_enclen_accuracy(void);
-static void test_large_data_decode(void);
 static void test_size_based_decode(void);
 // Split test_encode_decode_pairs into single responsibility functions
 static void test_standard_base64_roundtrip(void);
@@ -29,7 +28,6 @@ static void test_url_safe_base64_roundtrip(void);
 static void test_mixed_decode_compatibility(void);
 static void test_byte_level_comparison(void);
 static void test_decode_table_consistency(void);
-static void test_benchmark_decode_reproduction(void);
 // Comprehensive encode tests
 static void test_encode_null_parameters(void);
 static void test_encode_buffer_too_small(void);
@@ -478,70 +476,6 @@ static void test_enclen_accuracy(void)
     printf("Encoding length accuracy tests passed.\n");
 }
 
-// Test large data decode failure (reproducing 65KB benchmark issue)
-static void test_large_data_decode(void)
-{
-    printf("Testing large data decode failure...\n");
-
-    // Test sizes that reproduce the benchmark failure
-    size_t test_sizes[] = {1024, 4096, 16384, 65536, 131072}; // 1KB to 128KB
-    size_t num_sizes    = sizeof(test_sizes) / sizeof(test_sizes[0]);
-
-    for (size_t i = 0; i < num_sizes; i++) {
-        size_t data_size = test_sizes[i];
-        printf("  Testing %zu byte data... ", data_size);
-
-        // Generate random test data
-        unsigned char *test_data = malloc(data_size);
-        assert(test_data != NULL);
-        for (size_t j = 0; j < data_size; j++) {
-            test_data[j] = (unsigned char)(rand() % 256);
-        }
-
-        // Encode with Standard Base64
-        size_t encode_len = data_size;
-        char *encoded     = b64m_encode_std(test_data, &encode_len);
-        assert(encoded != NULL);
-        assert(encode_len > 0);
-
-        printf("encoded %zu -> %zu bytes, ", data_size, encode_len);
-
-        // Try to decode back
-        size_t decode_len = encode_len;
-        char *decoded = b64m_decode_std((unsigned char *)encoded, &decode_len);
-
-        if (decoded == NULL) {
-            printf("DECODE FAILED! errno=%d\n", errno);
-            // This is the critical bug we're investigating
-            if (data_size >= 65536) {
-                printf(
-                    "    ERROR: Standard Base64 decode fails for %zu bytes\n",
-                    data_size);
-                printf("    Encoded length: %zu\n", encode_len);
-                printf("    This explains the 13000x speedup anomaly\n");
-            }
-        } else {
-            printf("decoded %zu bytes, ", decode_len);
-
-            // Verify decode matches original
-            if (decode_len != data_size) {
-                printf("SIZE MISMATCH! expected %zu, got %zu\n", data_size,
-                       decode_len);
-            } else if (memcmp(test_data, decoded, data_size) != 0) {
-                printf("CONTENT MISMATCH!\n");
-            } else {
-                printf("OK\n");
-            }
-            free(decoded);
-        }
-
-        free(test_data);
-        free(encoded);
-    }
-
-    printf("Large data decode tests completed.\n");
-}
-
 // Test size-based decode to find exact failure threshold
 static void test_size_based_decode(void)
 {
@@ -904,109 +838,6 @@ static void test_decode_table_consistency(void)
     }
 
     printf("Decode table consistency tests completed.\n");
-}
-
-// Test that specifically reproduces the benchmark decode failure
-static void test_benchmark_decode_reproduction(void)
-{
-    printf("Testing benchmark decode failure reproduction...\n");
-
-    // Reproduce exact benchmark conditions for 65KB
-    size_t data_size = 65536;
-    printf("  Reproducing benchmark conditions for %zu bytes...\\n", data_size);
-
-    // Generate same type of random data as benchmark
-    unsigned char *test_data = malloc(data_size);
-    assert(test_data != NULL);
-    srand(12345); // Fixed seed for reproducibility
-    for (size_t i = 0; i < data_size; i++) {
-        test_data[i] = (unsigned char)(rand() % 256);
-    }
-
-    // Encode using the exact same method as benchmark
-    size_t encode_len = data_size;
-    char *encoded     = b64m_encode(test_data, &encode_len, BASE64MIX_STDENC);
-    assert(encoded != NULL);
-    printf("  Encoded: %zu -> %zu bytes\\n", data_size, encode_len);
-
-    // Diagnostic: check buffer size calculation
-    size_t calc_decode_len      = b64m_decoded_len(encode_len);
-    size_t provided_buffer_size = data_size + 1;
-    size_t required_buffer_size = calc_decode_len + 1;
-    printf("  Buffer size diagnostic:\\n");
-    printf("    b64m_decoded_len(%zu) = %zu\\n", encode_len, calc_decode_len);
-    printf("    Provided buffer size: %zu\\n", provided_buffer_size);
-    printf("    Required buffer size: %zu\\n", required_buffer_size);
-    printf("    Buffer size check: %zu < %zu = %s\\n", provided_buffer_size,
-           required_buffer_size,
-           provided_buffer_size < required_buffer_size ? "FAIL" : "PASS");
-
-    // Check padding in encoded string
-    size_t padding_count = 0;
-    if (encode_len >= 2) {
-        if (encoded[encode_len - 1] == '=')
-            padding_count++;
-        if (encoded[encode_len - 2] == '=')
-            padding_count++;
-    }
-    printf("    Padding characters in encoded string: %zu\\n", padding_count);
-    printf("    Last 8 chars of encoded: %.8s\\n", encoded + encode_len - 8);
-
-    // Test both benchmark decode methods
-    printf("  Testing b64m_decode (allocation-based)...\\n");
-    size_t alloc_decode_len = encode_len;
-    char *alloc_decoded     = b64m_decode((unsigned char *)encoded,
-                                          &alloc_decode_len, BASE64MIX_STDDEC);
-    if (alloc_decoded == NULL) {
-        printf("    FAILED! errno=%d\\n", errno);
-        printf("    This matches the benchmark allocation decode failure\\n");
-    } else {
-        printf("    SUCCESS: Decoded %zu bytes\\n", alloc_decode_len);
-        free(alloc_decoded);
-    }
-
-    printf("  Testing b64m_decode_to_buffer (zero-allocation)...\\n");
-    // Use the same buffer size calculation as the benchmark
-    size_t decode_buffer_size = b64m_decoded_len(strlen(encoded)) + 1;
-    unsigned char *buffer     = malloc(decode_buffer_size);
-    assert(buffer != NULL);
-    printf("    Using benchmark buffer size calculation: %zu\\n",
-           decode_buffer_size);
-    printf("    strlen(encoded) = %zu, encode_len = %zu\\n", strlen(encoded),
-           encode_len);
-    size_t zero_decode_len =
-        b64m_decode_to_buffer((unsigned char *)encoded, encode_len, buffer,
-                              decode_buffer_size, BASE64MIX_STDDEC);
-    if (zero_decode_len == 0) {
-        printf("    FAILED! errno=%d\\n", errno);
-        printf(
-            "    This matches the benchmark zero-allocation decode failure\\n");
-    } else {
-        printf("    SUCCESS: Decoded %zu bytes\\n", zero_decode_len);
-    }
-
-    // Also test with URL-safe (which works in benchmark)
-    printf("  Testing URL-safe decode for comparison...\\n");
-    size_t url_encode_len = data_size;
-    char *url_encoded =
-        b64m_encode(test_data, &url_encode_len, BASE64MIX_URLENC);
-    assert(url_encoded != NULL);
-
-    size_t url_decode_len = url_encode_len;
-    char *url_decoded     = b64m_decode((unsigned char *)url_encoded,
-                                        &url_decode_len, BASE64MIX_URLDEC);
-    if (url_decoded == NULL) {
-        printf("    URL DECODE FAILED! errno=%d\\n", errno);
-    } else {
-        printf("    URL DECODE SUCCESS: %zu bytes\\n", url_decode_len);
-        free(url_decoded);
-    }
-
-    free(test_data);
-    free(encoded);
-    free(buffer);
-    free(url_encoded);
-    printf("Benchmark decode reproduction test completed.\\n");
 }
 
 // Comprehensive encode tests
@@ -1440,11 +1271,9 @@ int main(int argc __attribute__((unused)),
 
     // Large data and diagnostic tests
     printf("\n=== Large Data & Diagnostic Tests ===\n");
-    test_large_data_decode();
     test_size_based_decode();
     test_byte_level_comparison();
     test_decode_table_consistency();
-    test_benchmark_decode_reproduction();
 
     printf("\n=== All tests passed! ===\n");
     return 0;
