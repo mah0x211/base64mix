@@ -306,109 +306,108 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
  */
 
 /** @brief Standard Base64 decoding table
- *  @note Uses -1 (becomes 255 when cast to unsigned char) for invalid
- * characters. Valid Base64 values are 0-63, so 255 is safely distinguishable.
+ *  @note Uses 0xFF for invalid characters. Valid Base64 values are 0-63, so 255
+ * is safely distinguishable.
  */
 static const unsigned char BASE64MIX_STDDEC[256] = {
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-
-    //  SP   !   "   #   $   %   &   '   (    )    *   +   ,    -    .   /
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, -1, -1, 63,
-    //   0   1   2   3   4   5   6   7   8   9
-    52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
-    //   :   ;   <   =   >   ?   @
-    -1, -1, -1, -1, -1, -1, -1,
-    //  A  B  C  D  E  F  G  H  I  J   K   L   M   N   O   P   Q   R   S   T   U
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    // +            /
+    62, 0xFF, 0xFF, 0xFF, 63,
+    // 0-9
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF,
+    // A-Z
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-    //   V   W   X   Y   Z
-    21, 22, 23, 24, 25,
-    //   [   \   ]   ^   _   `
-    -1, -1, -1, -1, -1, -1,
-    //   a   b   c   d   e   f   g   h   i   j   k   l   m   n   o   p   q   r s
+    21, 22, 23, 24, 25, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    // a-z
     26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
-    //   t   u   v   w   x   y   z
-    45, 46, 47, 48, 49, 50, 51,
-    //   {   |   }   ~
-    -1, -1, -1, -1,
-
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    45, 46, 47, 48, 49, 50, 51, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 /** @brief URL-safe Base64 decoding table
- *  @note Uses -1 (becomes 255 when cast to unsigned char) for invalid
- * characters. Accepts '-' and '_' instead of '+' and '/'. */
+ *  @note Uses 0xFF for invalid characters. Accepts '-' and '_' instead of '+'
+ * and '/'. */
 static const unsigned char BASE64MIX_URLDEC[256] = {
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-
-    //  SP   !   "   #   $   %   &   '   (    )    *   +   ,    -    .   /
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, -1,
-    //   0   1   2   3   4   5   6   7   8   9
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    // -
+    62, 0xFF, 0xFF,
+    // 0-9
     52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
     //   :   ;   <   =   >   ?   @
-    -1, -1, -1, -1, -1, -1, -1,
-    //  A  B  C  D  E  F  G  H  I  J   K   L   M   N   O   P   Q   R   S   T   U
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    // A-Z
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-    //   V   W   X   Y   Z
-    21, 22, 23, 24, 25,
-    //   [   \   ]   ^   _   `
-    -1, -1, -1, -1, 63, -1,
-    //   a   b   c   d   e   f   g   h   i   j   k   l   m   n   o   p   q   r s
+    21, 22, 23, 24, 25, 0xFF, 0xFF, 0xFF, 0xFF,
+    // _
+    63, 0xFF,
+    // a-z
     26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
-    //   t   u   v   w   x   y   z
-    45, 46, 47, 48, 49, 50, 51,
-    //   {   |   }   ~
-    -1, -1, -1, -1,
-
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    45, 46, 47, 48, 49, 50, 51, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 /** @brief Mixed format Base64 decoding table (handles both standard and
  * URL-safe)
- *  @note Uses -1 (becomes 255 when cast to unsigned char) for invalid
- * characters. Accepts both '+' and '-' at position 62, both '/' and '_' at
- * position 63. */
+ *  @note Uses 0xFF for invalid characters. Accepts both '+' and '-' at position
+ * 62, both '/' and '_' at position 63. */
 static const unsigned char BASE64MIX_DEC[256] = {
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-
-    //  SP   !   "   #   $   %   &   '   (    )    *   +   ,    -    .   /
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, 62, -1, 63,
-    //   0   1   2   3   4   5   6   7   8   9
-    52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
-    //   :   ;   <   =   >   ?   @
-    -1, -1, -1, -1, -1, -1, -1,
-    //  A  B  C  D  E  F  G  H  I  J   K   L   M   N   O   P   Q   R   S   T   U
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    // +     -      /
+    62, 0xFF, 62, 0xFF, 63,
+    // 0-9
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF,
+    // A-Z
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-    //   V   W   X   Y   Z
-    21, 22, 23, 24, 25,
-    //   [   \   ]   ^   _   `
-    -1, -1, -1, -1, 63, -1,
-    //   a   b   c   d   e   f   g   h   i   j   k   l   m   n   o   p   q   r s
+    21, 22, 23, 24, 25, 0xFF, 0xFF, 0xFF, 0xFF,
+    // _
+    63, 0xFF,
+    // a-z
     26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
-    //   t   u   v   w   x   y   z
-    45, 46, 47, 48, 49, 50, 51,
-    //   {   |   }   ~
-    -1, -1, -1, -1,
+    45, 46, 47, 48, 49, 50, 51, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+#undef FF
+
+/** @} */
 
 /**
  * @brief Calculate decoded length for base64 decoding
@@ -460,7 +459,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
 {
     unsigned char *ptr = dst;
     const uint8_t *cur = src;
-    const uint8_t *end = src + srclen;
+    const uint8_t *end = NULL;
     size_t len         = 0;
 
     // Validate input parameters
@@ -468,6 +467,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         errno = EINVAL;
         return 0;
     }
+    end = src + srclen;
 
     // Check if we have enough space (including null terminator)
     if (dstlen < b64m_decoded_len(srclen) + 1) {
@@ -487,7 +487,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     while (src < end && end[-1] == '=') {
         end--;
         // Early exit on too many padding characters
-        if ((srclen - (end - src)) > 2) {
+        if ((srclen - (size_t)(end - src)) > 2) {
             errno = EINVAL; // Too many padding characters
             return 0;
         }
@@ -497,8 +497,10 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     // No need for additional validation loop - single pass guaranteed
     // correctness
 
+#define REMAINING_CHARS() (size_t)(end - cur)
+
     // Process 8-character blocks (8 chars -> 6 bytes in one operation)
-    len = end - cur;
+    len = REMAINING_CHARS();
     for (const uint8_t *tail = cur + (len / 8) * 8; cur < tail; cur += 8) {
         // Decode all 8 characters at once
         uint8_t d0 = dectbl[cur[0]];
@@ -535,7 +537,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     }
 
     // Process remaining 4-character blocks
-    len = end - cur;
+    len = (size_t)(end - cur);
     for (const uint8_t *tail = cur + (len / 4) * 4; cur < tail; cur += 4) {
         // Decode 4 characters at once
         uint8_t d1 = dectbl[cur[0]];
@@ -550,18 +552,19 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         }
 
         // Direct decode: 4 chars (24 bits) -> 3 bytes
-        uint32_t v = (d1 << 26) | (d2 << 20) | (d3 << 14) | (d4 << 8);
+        uint32_t v = ((uint32_t)d1 << 26) | ((uint32_t)d2 << 20) |
+                     ((uint32_t)d3 << 14) | ((uint32_t)d4 << 8);
         // Extract 3 bytes from the 32-bit value
-        ptr[0]     = (unsigned char)(v >> 24);
-        ptr[1]     = (unsigned char)(v >> 16);
-        ptr[2]     = (unsigned char)(v >> 8);
+        ptr[0] = (unsigned char)(v >> 24);
+        ptr[1] = (unsigned char)(v >> 16);
+        ptr[2] = (unsigned char)(v >> 8);
         // Move pointers forward
         ptr += 3;
     }
 
     // Handle remaining characters (1-3 chars) directly without accumulator
     // This eliminates conditional branching in loops and reduces overhead
-    len = end - cur;
+    len = REMAINING_CHARS();
     if (len >= 3) {
         // Process 3 characters directly -> 2 bytes output
         // Batch validate all 3 characters first
@@ -577,12 +580,12 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
 
         // Direct decode: 3 chars (18 bits) -> 2 bytes + 2 padding bits
         // [AAAAAA][BBBBBB][CCCCCC] -> [AAAAAA|BB][BBBB|CCCC|CC]
-        uint32_t val = (d0 << 12) | (d1 << 6) | d2;
+        uint32_t val = ((uint32_t)d0 << 12) | ((uint32_t)d1 << 6) | d2;
         ptr[0]       = (unsigned char)(val >> 10); // First byte: [AAAAAA|BB]
         ptr[1]       = (unsigned char)(val >> 2);  // Second byte: [BBBB|CCCC]
         ptr += 2;
         cur += 3;
-        len = end - cur;
+        len = REMAINING_CHARS();
     }
 
     if (len >= 2) {
@@ -599,11 +602,10 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
 
         // Direct decode: 2 chars (12 bits) -> 1 byte + 4 padding bits
         // [AAAAAA][BBBBBB] -> [AAAAAA|BB]
-        uint32_t val = (d0 << 6) | d1;
+        uint32_t val = ((uint32_t)d0 << 6) | d1;
         ptr[0]       = (unsigned char)(val >> 4); // Single byte: [AAAAAA|BB]
         ptr += 1;
         cur += 2;
-        len = end - cur;
     }
 
     // If 1 character remains, ignore it (invalid incomplete group)
