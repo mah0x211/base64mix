@@ -20,6 +20,10 @@ TEST_SRC = $(TEST_DIR)/test_base64mix.c
 TEST_BIN = $(TEST_DIR)/test_base64mix
 TEST_OBJ = $(TEST_DIR)/test_base64mix.o
 
+# RFC 4648 compliance proof test
+RFC_TEST_SRC = $(TEST_DIR)/test_rfc4648_compliance_proof.c
+RFC_TEST_BIN = $(TEST_DIR)/test_rfc4648_compliance_proof
+
 # Benchmark directory and files
 BENCH_DIR = bench
 BENCH_SRC = $(BENCH_DIR)/benchmark.c
@@ -33,23 +37,33 @@ COV_DIR = coverage
 COV_INFO = $(COV_DIR)/coverage.info
 COV_HTML = $(COV_DIR)/html
 
-.PHONY: all test coverage asan bench bench-c bench-go bench-rust bench-all clean help
+.PHONY: all test test-rfc coverage asan bench bench-c bench-go bench-rust bench-all clean help
 
 # Default target - run tests with coverage
 all: test
 
 # Compile and run tests with coverage
-test: $(TEST_BIN)
-	@echo "Running tests with coverage..."
+test: $(TEST_BIN) test-rfc
+	@echo "Running standard tests with coverage..."
 	@./$(TEST_BIN)
 	@echo "Generating coverage data..."
 	@gcov $(TEST_SRC) -o $(TEST_DIR)/
 	@echo "Coverage files generated. Run 'make coverage' for HTML report."
 
+# Compile and run RFC 4648 compliance proof test
+test-rfc: $(RFC_TEST_BIN)
+	@echo "Running RFC 4648 compliance proof test..."
+	@./$(RFC_TEST_BIN)
+
 # Compile test binary with coverage flags
 $(TEST_BIN): $(TEST_SRC)
 	@echo "Compiling tests with coverage support..."
 	@$(CC) $(CFLAGS) $(COV_FLAGS) -Wno-sign-conversion -Wno-float-conversion -Wno-implicit-int-conversion -o $(TEST_BIN) $(TEST_SRC)
+
+# Compile RFC 4648 compliance proof test
+$(RFC_TEST_BIN): $(RFC_TEST_SRC)
+	@echo "Compiling RFC 4648 compliance proof test..."
+	@$(CC) $(CFLAGS) $(COV_FLAGS) -Wno-sign-conversion -Wno-float-conversion -Wno-implicit-int-conversion -o $(RFC_TEST_BIN) $(RFC_TEST_SRC)
 
 # Generate HTML coverage report
 coverage: test
@@ -125,6 +139,7 @@ $(BENCH_BIN): $(BENCH_SRC)
 clean:
 	@echo "Cleaning up..."
 	@rm -f $(TEST_BIN) $(TEST_BIN)_asan $(TEST_OBJ)
+	@rm -f $(RFC_TEST_BIN)
 	@rm -f $(BENCH_BIN)
 	@rm -f $(COV_FILES)
 	@rm -rf $(COV_DIR)
@@ -136,8 +151,9 @@ clean:
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  all        - Compile and run tests with coverage (default)"
-	@echo "  test       - Compile and run tests with coverage"
+	@echo "  all        - Compile and run all tests with coverage (default)"
+	@echo "  test       - Compile and run all tests with coverage"
+	@echo "  test-rfc   - Run RFC 4648 compliance proof test only"
 	@echo "  coverage   - Generate HTML coverage report (requires lcov)"
 	@echo "  asan       - Build and run tests with Address Sanitizer"
 	@echo ""

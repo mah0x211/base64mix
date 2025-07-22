@@ -446,6 +446,8 @@ static inline size_t b64m_decoded_len(size_t enclen)
  * @errno EINVAL - Invalid base64 character encountered
  * @errno EINVAL - Invalid padding format (non-'=' after '=')
  * @errno ENOSPC - Output buffer too small
+ * @errno EILSEQ - Illegal byte sequence (non-zero ignored bits in incomplete
+ * groups)
  *
  * @note Zero-allocation version: uses caller-provided buffer
  * @note Buffer size can be calculated with b64m_decoded_len()
@@ -460,10 +462,16 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     unsigned char *ptr = dst;
     const uint8_t *cur = src;
     const uint8_t *end = NULL;
+    uint8_t npad       = 0; // Number of padding characters at the end
     size_t len         = 0;
 
     // Validate input parameters
-    if (!src || !dst || !dectbl) {
+    // srclen % 4 must not be 1 (invalid base64)
+    //  - 3 characters are valid (with padding)
+    //  - 2 characters are valid (with padding)
+    //  - 1 character is invalid (cannot decode to bytes)
+    //  - 0 characters is valid (empty input)
+    if (!src || !dst || !dectbl || (srclen % 4 == 1)) {
         errno = EINVAL;
         return 0;
     }
@@ -486,11 +494,17 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     // Single pass: count and validate padding characters from the end
     while (src < end && end[-1] == '=') {
         end--;
+        npad++;
         // Early exit on too many padding characters
         if ((srclen - (size_t)(end - src)) > 2) {
             errno = EINVAL; // Too many padding characters
             return 0;
         }
+    }
+    // If src has padding but the length is not a multiple of 4, it's invalid
+    if (npad && srclen % 4) {
+        errno = EINVAL;
+        return 0;
     }
 
     // At this point, characters from effective_len to srclen are all '='
@@ -578,6 +592,12 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
             return 0;
         }
 
+        // Check RFC 4648 compliance: last 2 bits must be 0 for 3-char groups
+        if ((d2 & 0x03) != 0) {
+            errno = EILSEQ; // Illegal byte sequence - data loss would occur
+            return 0;
+        }
+
         // Direct decode: 3 chars (18 bits) -> 2 bytes + 2 padding bits
         // [AAAAAA][BBBBBB][CCCCCC] -> [AAAAAA|BB][BBBB|CCCC|CC]
         uint32_t val = ((uint32_t)d0 << 12) | ((uint32_t)d1 << 6) | d2;
@@ -597,6 +617,12 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         // Check if any character is invalid
         if ((d0 | d1) > 63) {
             errno = EINVAL;
+            return 0;
+        }
+
+        // Check RFC 4648 compliance: last 4 bits must be 0 for 2-char groups
+        if ((d1 & 0x0F) != 0) {
+            errno = EILSEQ; // Illegal byte sequence - data loss would occur
             return 0;
         }
 
@@ -666,6 +692,8 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
  * @errno EINVAL - Invalid base64 character encountered
  * @errno EINVAL - Invalid padding format (non-'=' after '=')
  * @errno ENOMEM - Memory allocation failure
+ * @errno EILSEQ - Illegal byte sequence (non-zero ignored bits in incomplete
+ * groups)
  *
  * @note Handles both standard (with padding) and URL-safe (without padding)
  * formats
