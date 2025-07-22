@@ -67,58 +67,25 @@ static const unsigned char BASE64MIX_URLENC[64] = {
  * @brief Calculate encoded length for base64 encoding
  *
  * @param len Length of input data to encode
- * @param enctbl Encoding table (BASE64MIX_STDENC or BASE64MIX_URLENC)
  *
- * @return Required buffer size for encoded output (including null terminator)
+ * @return Required buffer size for encoded output
  *
- * @note For standard base64, includes padding to nearest 4-byte boundary
- * @note For URL-safe base64, no padding is added
+ * @note Always returns size for padded base64 (standard format)
+ * @note This ensures sufficient buffer for both standard and URL-safe formats
+ * @note Returns SIZE_MAX on overflow
  */
-static inline size_t b64m_encoded_len(size_t len, const unsigned char enctbl[])
+static inline size_t b64m_encoded_len(size_t len)
 {
-    size_t enclen = 0;
+    // Calculate number of 3-byte blocks
+    size_t block = len / 3 + (len % 3 != 0);
 
-    if (len == 0) {
-        return 1; // Just null terminator
-    } else if (len > (SIZE_MAX / 4)) {
-        return 0; // Indicate overflow error
+    if (block > (SIZE_MAX / 4)) {
+        return SIZE_MAX; // Indicate overflow error
     }
 
-    // Base64 encoding: 3 input bytes -> 4 output bytes
-    enclen = (len * 4 + 2) / 3;
-
-    // Add padding only if requested (standard base64)
-    if (enctbl == BASE64MIX_STDENC) {
-        // Round up to nearest multiple of 4 (base64 padding requirement)
-        size_t remainder = enclen % 4;
-        if (remainder) {
-            enclen += 4 - remainder;
-        }
-    }
-
-    // Final overflow check
-    if (enclen < len) {
-        return 0; // Indicate overflow error
-    }
-    return enclen + 1; // +1 for null terminator
+    // Each 3-byte block becomes 4 characters in base64
+    return block * 4;
 }
-
-/**
- * @name Convenience Macros for Buffer Size Calculation
- * @{
- */
-
-/** @brief Calculate buffer size needed for standard Base64 encoding
- *  @param len Input data length
- *  @return Required buffer size including null terminator */
-#define b64m_encoded_len_std(len) b64m_encoded_len(len, BASE64MIX_STDENC)
-
-/** @brief Calculate buffer size needed for URL-safe Base64 encoding
- *  @param len Input data length
- *  @return Required buffer size including null terminator */
-#define b64m_encoded_len_url(len) b64m_encoded_len(len, BASE64MIX_URLENC)
-
-/** @} */
 
 /**
  * @brief Encode binary data to base64 string using user-provided buffer
@@ -154,8 +121,8 @@ static inline size_t b64m_encode_to_buffer(const unsigned char *src,
         return 0;
     }
 
-    // Check if we have enough space
-    if (dstlen < b64m_encoded_len(srclen, enctbl)) {
+    // dstlen must include +1 space for null terminator
+    if (dstlen < b64m_encoded_len(srclen)) {
         errno = ENOSPC;
         return 0;
     }
@@ -298,14 +265,15 @@ static inline char *b64m_encode(const unsigned char *src, size_t *len,
     }
 
     // Calculate required buffer size using zero-allocation helper
-    buflen = b64m_encoded_len(*len, enctbl);
+    buflen = b64m_encoded_len(*len);
     // Check for overflow (buflen of 0 indicates overflow)
-    if (buflen == 0) {
+    if (buflen == SIZE_MAX) {
         errno = ERANGE;
         return NULL;
     }
 
     // Allocate buffer
+    buflen += 1; // +1 for null terminator
     if ((res = malloc(buflen))) {
         // Use zero-allocation version to do the actual encoding
         // Update length with actual encoded length
@@ -456,9 +424,6 @@ static const unsigned char BASE64MIX_DEC[256] = {
  */
 static inline size_t b64m_decoded_len(size_t enclen)
 {
-    if (enclen == 0) {
-        return 0;
-    }
     // Base64 decoding: 4 input chars -> 3 output bytes (maximum)
     // For buffer allocation, we use a simple calculation that ensures we have
     // enough space. This may slightly overestimate but guarantees sufficient
