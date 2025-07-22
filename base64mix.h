@@ -122,7 +122,7 @@ static inline size_t b64m_encode_to_buffer(const unsigned char *src,
     }
 
     // dstlen must include +1 space for null terminator
-    if (dstlen < b64m_encoded_len(srclen)) {
+    if (dstlen < (b64m_encoded_len(srclen) + 1)) {
         errno = ENOSPC;
         return 0;
     }
