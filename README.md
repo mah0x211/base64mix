@@ -86,7 +86,7 @@ free(buffer);
 
 ## Encoding Functions
 
-### `char *b64m_encode_std(const char *src, size_t *len)`
+### char *b64m_encode_std(const char *src, size_t *len)
 
 Encode binary data to standard Base64 format (with padding).
 
@@ -106,7 +106,7 @@ Encode binary data to standard Base64 format (with padding).
 - `ENOMEM` - Memory allocation failure
 
 
-### `char *b64m_encode_url(const char *src, size_t *len)`
+### char *b64m_encode_url(const char *src, size_t *len)
 
 Encode binary data to URL-safe Base64 format (without padding).
 
@@ -122,7 +122,7 @@ Encode binary data to URL-safe Base64 format (without padding).
 **Errors:** Same as `b64m_encode_std`
 
 
-### `size_t b64m_encode_to_buffer_std(const char *src, size_t srclen, char *dst, size_t dstlen)`
+### size_t b64m_encode_to_buffer_std(const char *src, size_t srclen, char *dst, size_t dstlen)
 
 Encode binary data to standard Base64 using user-provided buffer.
 
@@ -135,7 +135,7 @@ Encode binary data to standard Base64 using user-provided buffer.
 
 **Returns:**
 
-- Length of encoded string (excluding null terminator), or 0 on error
+- Length of encoded string (excluding null terminator), or `SIZE_MAX` on error
 
 **Errors:**
 
@@ -143,7 +143,7 @@ Encode binary data to standard Base64 using user-provided buffer.
 - `ENOSPC` - Output buffer too small
 
 
-### `size_t b64m_encode_to_buffer_url(const char *src, size_t srclen, char *dst, size_t dstlen)`
+### size_t b64m_encode_to_buffer_url(const char *src, size_t srclen, char *dst, size_t dstlen)
 
 Encode binary data to URL-safe Base64 using user-provided buffer.
 
@@ -154,7 +154,7 @@ Encode binary data to URL-safe Base64 using user-provided buffer.
 
 ## Decoding Functions
 
-### `char *b64m_decode_std(const char *src, size_t *len)`
+### char *b64m_decode_std(const char *src, size_t *len)
 
 Decode standard Base64 string to binary data.
 
@@ -173,7 +173,7 @@ Decode standard Base64 string to binary data.
 - `ENOMEM` - Memory allocation failure
 
 
-### `char *b64m_decode_url(const char *src, size_t *len)`
+### char *b64m_decode_url(const char *src, size_t *len)
 
 Decode URL-safe Base64 string to binary data.
 
@@ -182,7 +182,7 @@ Decode URL-safe Base64 string to binary data.
 **Errors:** Same as `b64m_decode_std`
 
 
-### `char *b64m_decode_mix(const char *src, size_t *len)`
+### char *b64m_decode_mix(const char *src, size_t *len)
 
 Decode mixed format Base64 (handles both standard and URL-safe).
 
@@ -191,7 +191,7 @@ Decode mixed format Base64 (handles both standard and URL-safe).
 **Errors:** Same as `b64m_decode_std`
 
 
-### `size_t b64m_decode_to_buffer_std(const char *src, size_t srclen, char *dst, size_t dstlen)`
+### size_t b64m_decode_to_buffer_std(const char *src, size_t srclen, char *dst, size_t dstlen)
 
 Decode standard Base64 string using user-provided buffer.
 
@@ -204,14 +204,15 @@ Decode standard Base64 string using user-provided buffer.
 
 **Returns:**
 
-- Length of decoded data (excluding null terminator), or 0 on error
+- Length of decoded data (excluding null terminator), or `SIZE_MAX` on error
 
 **Errors:**
+
 - `EINVAL` - Invalid arguments (NULL pointers, invalid characters, malformed padding)
 - `ENOSPC` - Output buffer too small
 
 
-### `size_t b64m_decode_to_buffer_url(const char *src, size_t srclen, char *dst, size_t dstlen)`
+### size_t b64m_decode_to_buffer_url(const char *src, size_t srclen, char *dst, size_t dstlen)
 
 Decode URL-safe Base64 string using user-provided buffer.
 
@@ -220,7 +221,7 @@ Decode URL-safe Base64 string using user-provided buffer.
 **Errors:** Same as `b64m_decode_to_buffer_std`
 
 
-### `size_t b64m_decode_to_buffer_mix(const char *src, size_t srclen, char *dst, size_t dstlen)`
+### size_t b64m_decode_to_buffer_mix(const char *src, size_t srclen, char *dst, size_t dstlen)
 
 Decode mixed format Base64 using user-provided buffer.
 
@@ -231,7 +232,7 @@ Decode mixed format Base64 using user-provided buffer.
 
 ## Utility Functions
 
-### `size_t b64m_encoded_len(size_t len)`
+### size_t b64m_encoded_len(size_t len)
 
 Calculate required buffer size for Base64 encoding.
 
@@ -245,7 +246,7 @@ Calculate required buffer size for Base64 encoding.
 
 **Note:** Always returns size for padded Base64 (standard format)
 
-### `size_t b64m_decoded_len(size_t enclen)`
+### size_t b64m_decoded_len(size_t enclen)
 
 Calculate maximum buffer size needed for Base64 decoding.
 
