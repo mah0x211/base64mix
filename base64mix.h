@@ -96,7 +96,8 @@ static inline size_t b64m_encoded_len(size_t len)
  * @param dstlen Size of output buffer
  * @param enctbl Encoding table (BASE64MIX_STDENC or BASE64MIX_URLENC)
  *
- * @return Length of encoded string (excluding null terminator), or 0 on error
+ * @return Length of encoded string (excluding null terminator), or SIZE_MAX on
+ * error
  *
  * @errno EINVAL - Invalid arguments (NULL pointers)
  * @errno ENOSPC - Output buffer too small
@@ -117,13 +118,13 @@ static inline size_t b64m_encode_to_buffer(const char *src, size_t srclen,
     // Validate input parameters
     if (!src || !dst || !enctbl) {
         errno = EINVAL;
-        return 0;
+        return SIZE_MAX;
     }
 
     // dstlen must include +1 space for null terminator
     if (dstlen < (b64m_encoded_len(srclen) + 1)) {
         errno = ENOSPC;
-        return 0;
+        return SIZE_MAX;
     }
 
     // Handle empty input
@@ -219,7 +220,7 @@ static inline size_t b64m_encode_to_buffer(const char *src, size_t srclen,
  *  @param srclen Input data length
  *  @param dst Output buffer
  *  @param dstlen Output buffer size
- *  @return Length of encoded string or 0 on error */
+ *  @return Length of encoded string or SIZE_MAX on error */
 #define b64m_encode_to_buffer_std(src, srclen, dst, dstlen)                    \
     b64m_encode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_STDENC)
 
@@ -228,7 +229,7 @@ static inline size_t b64m_encode_to_buffer(const char *src, size_t srclen,
  *  @param srclen Input data length
  *  @param dst Output buffer
  *  @param dstlen Output buffer size
- *  @return Length of encoded string or 0 on error */
+ *  @return Length of encoded string or SIZE_MAX on error */
 #define b64m_encode_to_buffer_url(src, srclen, dst, dstlen)                    \
     b64m_encode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_URLENC)
 
@@ -256,6 +257,9 @@ static inline char *b64m_encode(const char *src, size_t *len,
 {
     char *res     = NULL;
     size_t buflen = 0;
+
+    // Reset errno before allocation
+    errno = 0;
 
     // Validate input parameters
     if (!src || !len || !enctbl) {
@@ -439,7 +443,8 @@ static inline size_t b64m_decoded_len(size_t enclen)
  * @param dectbl Decoding table (BASE64MIX_STDDEC, BASE64MIX_URLDEC, or
  * BASE64MIX_DEC)
  *
- * @return Length of decoded data (excluding null terminator), or 0 on error
+ * @return Length of decoded data (excluding null terminator), or SIZE_MAX on
+ * error
  *
  * @errno EINVAL - Invalid arguments (NULL pointers)
  * @errno EINVAL - Invalid base64 character encountered
@@ -471,14 +476,14 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
     //  - 0 characters is valid (empty input)
     if (!src || !dst || !dectbl || (srclen % 4 == 1)) {
         errno = EINVAL;
-        return 0;
+        return SIZE_MAX;
     }
     end = cur + srclen;
 
     // Check if we have enough space (including null terminator)
     if (dstlen < b64m_decoded_len(srclen) + 1) {
         errno = ENOSPC;
-        return 0;
+        return SIZE_MAX;
     }
 
     // Handle empty input
@@ -496,13 +501,13 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
         // Early exit on too many padding characters
         if ((srclen - (size_t)(end - cur)) > 2) {
             errno = EINVAL; // Too many padding characters
-            return 0;
+            return SIZE_MAX;
         }
     }
     // If src has padding but the length is not a multiple of 4, it's invalid
     if (npad && srclen % 4) {
         errno = EINVAL;
-        return 0;
+        return SIZE_MAX;
     }
 
     // At this point, characters from effective_len to srclen are all '='
@@ -527,7 +532,7 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
         // Check for invalid characters using OR operation
         if ((d0 | d1 | d2 | d3 | d4 | d5 | d6 | d7) > 63) {
             errno = EINVAL;
-            return 0;
+            return SIZE_MAX;
         }
 
         // Combine 8 characters into a 64-bit value
@@ -560,7 +565,7 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
         // Check if any character is invalid (single bitwise OR operation)
         if ((d1 | d2 | d3 | d4) > 63) {
             errno = EINVAL;
-            return 0;
+            return SIZE_MAX;
         }
 
         // Direct decode: 4 chars (24 bits) -> 3 bytes
@@ -587,13 +592,13 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
         // Check if any character is invalid (single bitwise OR operation)
         if ((d0 | d1 | d2) > 63) {
             errno = EINVAL;
-            return 0;
+            return SIZE_MAX;
         }
 
         // Check RFC 4648 compliance: last 2 bits must be 0 for 3-char groups
         if ((d2 & 0x03) != 0) {
             errno = EILSEQ; // Illegal byte sequence - data loss would occur
-            return 0;
+            return SIZE_MAX;
         }
 
         // Direct decode: 3 chars (18 bits) -> 2 bytes + 2 padding bits
@@ -615,13 +620,13 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
         // Check if any character is invalid
         if ((d0 | d1) > 63) {
             errno = EINVAL;
-            return 0;
+            return SIZE_MAX;
         }
 
         // Check RFC 4648 compliance: last 4 bits must be 0 for 2-char groups
         if ((d1 & 0x0F) != 0) {
             errno = EILSEQ; // Illegal byte sequence - data loss would occur
-            return 0;
+            return SIZE_MAX;
         }
 
         // Direct decode: 2 chars (12 bits) -> 1 byte + 4 padding bits
@@ -651,7 +656,7 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
  *  @param srclen Input string length
  *  @param dst Output buffer
  *  @param dstlen Output buffer size
- *  @return Length of decoded data or 0 on error */
+ *  @return Length of decoded data or SIZE_MAX on error */
 #define b64m_decode_to_buffer_std(src, srclen, dst, dstlen)                    \
     b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_STDDEC)
 
@@ -660,7 +665,7 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
  *  @param srclen Input string length
  *  @param dst Output buffer
  *  @param dstlen Output buffer size
- *  @return Length of decoded data or 0 on error */
+ *  @return Length of decoded data or SIZE_MAX on error */
 #define b64m_decode_to_buffer_url(src, srclen, dst, dstlen)                    \
     b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_URLDEC)
 
@@ -670,7 +675,7 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
  *  @param srclen Input string length
  *  @param dst Output buffer
  *  @param dstlen Output buffer size
- *  @return Length of decoded data or 0 on error */
+ *  @return Length of decoded data or SIZE_MAX on error */
 #define b64m_decode_to_buffer_mix(src, srclen, dst, dstlen)                    \
     b64m_decode_to_buffer(src, srclen, dst, dstlen, BASE64MIX_DEC)
 
@@ -702,8 +707,11 @@ static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
 static inline char *b64m_decode(const char *src, size_t *len,
                                 const unsigned char dectbl[])
 {
-    char *res = NULL;
-    size_t buflen      = 0;
+    char *res     = NULL;
+    size_t buflen = 0;
+
+    // Reset errno before processing
+    errno = 0;
 
     // Validate input parameters
     if (!src || !len || !dectbl) {
@@ -716,12 +724,13 @@ static inline char *b64m_decode(const char *src, size_t *len,
     if ((res = malloc(buflen))) {
         // Use zero-allocation version to do the actual decoding
         // Update length with actual decoded length
-        *len = b64m_decode_to_buffer(src, *len, res, buflen, dectbl);
-        if (*len == 0 && errno != 0) {
+        size_t outlen = b64m_decode_to_buffer(src, *len, res, buflen, dectbl);
+        if (outlen == SIZE_MAX) {
             // Error occurred in decoding
             free(res);
             return NULL;
         }
+        *len = outlen;
     }
     return res;
 }
