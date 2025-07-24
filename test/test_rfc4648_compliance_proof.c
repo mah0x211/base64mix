@@ -52,7 +52,7 @@ static void proof_padding_bit_requirements(void) {
         
         size_t len = 2;
         errno = 0;
-        char *result = b64m_decode_std((unsigned char *)test_input, &len);
+        char *result = b64m_decode_std(test_input, &len);
         
         int lower_4_bits = i & 0x0F;
         int should_be_valid = (lower_4_bits == 0);
@@ -91,7 +91,7 @@ static void proof_padding_bit_requirements(void) {
         
         size_t len = 3;
         errno = 0;
-        char *result = b64m_decode_std((unsigned char *)test_input, &len);
+        char *result = b64m_decode_std(test_input, &len);
         
         int lower_2_bits = i & 0x03;
         int should_be_valid = (lower_2_bits == 0);
@@ -158,7 +158,7 @@ static void proof_complete_group_handling(void) {
         assert(len % 4 == 0); // Verify this is indeed a complete group
         
         errno = 0;
-        char *result = b64m_decode_std((unsigned char *)input, &len);
+        char *result = b64m_decode_std(input, &len);
         
         printf("  \"%s\" (len=%zu): ", input, strlen(input));
         
@@ -211,7 +211,7 @@ static void proof_invalid_length_handling(void) {
         assert(len % 4 == 1); // Verify this has invalid length
         
         errno = 0;
-        char *result = b64m_decode_std((unsigned char *)input, &len);
+        char *result = b64m_decode_std(input, &len);
         
         printf("  \"%s\" (len=%zu): ", input, strlen(input));
         
@@ -245,7 +245,7 @@ static void proof_canonical_encoding(void) {
     printf("Proving that implementation enforces canonical encoding requirements\n\n");
     
     // Test round-trip encoding/decoding to verify canonical properties
-    const unsigned char test_data[] = {
+    const char test_data[] = {
         0x00,                    // 1 byte  -> "AA==" (standard) / "AA" (URL)
         0x00, 0x10,             // 2 bytes -> "ABA=" (standard) / "ABA" (URL)  
         0x00, 0x10, 0x83,       // 3 bytes -> "ABCD" (both formats)
@@ -262,7 +262,7 @@ static void proof_canonical_encoding(void) {
     
     // Verify that "AA" (without padding) decodes correctly for URL-safe
     len = 2;
-    char *decoded = b64m_decode_url((unsigned char *)"AA", &len);
+    char *decoded = b64m_decode_url("AA", &len);
     assert(decoded != NULL && len == 1 && (unsigned char)decoded[0] == 0x00);
     printf("  \"AA\" (URL-safe) -> {0x%02x} ✅ Canonical\n", (unsigned char)decoded[0]);
     
@@ -277,7 +277,7 @@ static void proof_canonical_encoding(void) {
     
     // Verify that "ABA" (without padding) decodes correctly for URL-safe
     len = 3;
-    decoded = b64m_decode_url((unsigned char *)"ABA", &len);
+    decoded = b64m_decode_url("ABA", &len);
     assert(decoded != NULL && len == 2);
     assert((unsigned char)decoded[0] == 0x00 && (unsigned char)decoded[1] == 0x10);
     printf("  \"ABA\" (URL-safe) -> {0x%02x, 0x%02x} ✅ Canonical\n", 
@@ -292,7 +292,7 @@ static void proof_canonical_encoding(void) {
     // "ABC" is non-canonical for {0x00, 0x10} because C has non-zero padding bits
     len = 3;
     errno = 0;
-    decoded = b64m_decode_std((unsigned char *)"ABC", &len);
+    decoded = b64m_decode_std("ABC", &len);
     printf("  \"ABC\" (non-canonical) -> ");
     if (decoded == NULL && errno == EILSEQ) {
         printf("✅ CORRECTLY REJECTED (EILSEQ)\n");
@@ -344,7 +344,7 @@ static void proof_error_precedence(void) {
         size_t len = strlen(input);
         errno = 0;
         
-        char *result = b64m_decode_std((unsigned char *)input, &len);
+        char *result = b64m_decode_std(input, &len);
         
         printf("  \"%s\" -> ", input);
         if (result == NULL && errno == precedence_tests[i].expected_errno) {
@@ -407,7 +407,7 @@ static void proof_padding_violations(void) {
         size_t len = strlen(input);
         errno = 0;
         
-        char *result = b64m_decode_std((unsigned char *)input, &len);
+        char *result = b64m_decode_std(input, &len);
         
         printf("  \"%s\" -> ", input);
         if (result == NULL && errno == padding_violation_tests[i].expected_errno) {
@@ -474,7 +474,7 @@ static void proof_bit_violations(void) {
         const char* input = bit_test_cases[i].input;
         size_t len = strlen(input);
         errno = 0;
-        char *result = b64m_decode_std((unsigned char *)input, &len);
+        char *result = b64m_decode_std(input, &len);
         
         printf("  \"%s\" -> ", input);
         
@@ -513,7 +513,7 @@ static void proof_bit_violations(void) {
         
         size_t len = 4;
         errno = 0;
-        char *result = b64m_decode_std((unsigned char *)test_input, &len);
+        char *result = b64m_decode_std(test_input, &len);
         
         // Determine if this character should violate RFC (lower 2 bits != 0)
         int char_index = 0;

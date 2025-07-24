@@ -52,10 +52,10 @@ static void base64std(void)
 
     // standard decode
     len  = strlen(str);
-    dec  = b64m_decode_std((unsigned char *)str, &len);
+    dec  = b64m_decode_std(str, &len);
     // encode a decoded value
     elen = len;
-    enc  = b64m_encode_std((unsigned char *)dec, &elen);
+    enc  = b64m_encode_std(dec, &elen);
     // check
     printf("standard encoding: %s -> decode then encode: %s\n", str, enc);
     printf("  Original length: %zu, Encoded length: %zu\n", len, elen);
@@ -82,10 +82,10 @@ static void base64url(void)
 
     // standard decode
     len  = strlen(str);
-    dec  = b64m_decode_url((unsigned char *)str, &len);
+    dec  = b64m_decode_url(str, &len);
     // encode a decoded value
     elen = len;
-    enc  = b64m_encode_url((unsigned char *)dec, &elen);
+    enc  = b64m_encode_url(dec, &elen);
     // check - The test should verify round-trip decode->encode works
     // Note: We're not comparing with original string since we decoded first
     printf("url encoding: %s -> decode then encode: %s\n", str, enc);
@@ -104,10 +104,10 @@ static void base64mix1(void)
 
     // standard decode
     len  = strlen(str);
-    dec  = b64m_decode_mix((unsigned char *)str, &len);
+    dec  = b64m_decode_mix(str, &len);
     // encode a decoded value
     elen = len;
-    enc  = b64m_encode_url((unsigned char *)dec, &elen);
+    enc  = b64m_encode_url(dec, &elen);
     // check - The test should verify round-trip decode->encode works
     // Note: We're not comparing with original string since we decoded first
     printf("url encoding: %s -> decode then encode: %s\n", str, enc);
@@ -136,7 +136,7 @@ static void test_empty_inputs(void)
 
     // Test zero length
     size_t len                      = 0;
-    const unsigned char *empty_data = (unsigned char *)"";
+    const char *empty_data = "";
     char *result                    = b64m_encode_std(empty_data, &len);
     assert(result != NULL);
     assert(len == 0);
@@ -158,7 +158,7 @@ static void test_single_character_encoding(void)
     printf("Testing single character encoding...\n");
 
     // Test single character
-    const unsigned char *single = (unsigned char *)"A";
+    const char *single = "A";
     size_t len                  = 1;
     char *encoded               = b64m_encode_std(single, &len);
     assert(encoded != NULL);
@@ -167,7 +167,7 @@ static void test_single_character_encoding(void)
 
     // Decode it back
     size_t decoded_len = strlen(encoded);
-    char *decoded = b64m_decode_std((unsigned char *)encoded, &decoded_len);
+    char *decoded = b64m_decode_std(encoded, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == 1);
     assert(decoded[0] == 'A');
@@ -183,7 +183,7 @@ static void test_single_character_encoding(void)
     assert(strcmp(encoded, "QQ") == 0);
 
     decoded_len = strlen(encoded);
-    decoded     = b64m_decode_url((unsigned char *)encoded, &decoded_len);
+    decoded     = b64m_decode_url(encoded, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == 1);
     assert(decoded[0] == 'A');
@@ -198,7 +198,7 @@ static void test_padding_scenarios_1byte(void)
 {
     printf("Testing 1 byte padding scenario...\n");
 
-    const unsigned char *test_data = (unsigned char *)"A";
+    const char *test_data = "A";
     size_t test_len                = 1;
 
     // Standard base64 with padding
@@ -209,7 +209,7 @@ static void test_padding_scenarios_1byte(void)
     assert(encoded[3] == '=');
 
     size_t decoded_len = strlen(encoded);
-    char *decoded = b64m_decode_std((unsigned char *)encoded, &decoded_len);
+    char *decoded = b64m_decode_std(encoded, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == 1);
     assert(decoded[0] == 'A');
@@ -224,7 +224,7 @@ static void test_padding_scenarios_1byte(void)
     assert(test_len == 2); // No padding
 
     decoded_len = strlen(encoded);
-    decoded     = b64m_decode_url((unsigned char *)encoded, &decoded_len);
+    decoded     = b64m_decode_url(encoded, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == 1);
     assert(decoded[0] == 'A');
@@ -239,7 +239,7 @@ static void test_padding_scenarios_2byte(void)
 {
     printf("Testing 2 byte padding scenario...\n");
 
-    const unsigned char *test_data = (unsigned char *)"AB";
+    const char *test_data = "AB";
     size_t test_len                = 2;
 
     // Standard base64 with padding
@@ -250,7 +250,7 @@ static void test_padding_scenarios_2byte(void)
     assert(encoded[2] != '=');
 
     size_t decoded_len = strlen(encoded);
-    char *decoded = b64m_decode_std((unsigned char *)encoded, &decoded_len);
+    char *decoded = b64m_decode_std(encoded, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == 2);
     assert(memcmp(decoded, test_data, 2) == 0);
@@ -265,7 +265,7 @@ static void test_padding_scenarios_2byte(void)
     assert(test_len == 3); // No padding
 
     decoded_len = strlen(encoded);
-    decoded     = b64m_decode_url((unsigned char *)encoded, &decoded_len);
+    decoded     = b64m_decode_url(encoded, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == 2);
     assert(memcmp(decoded, test_data, 2) == 0);
@@ -280,7 +280,7 @@ static void test_padding_scenarios_3byte(void)
 {
     printf("Testing 3 byte padding scenario...\n");
 
-    const unsigned char *test_data = (unsigned char *)"ABC";
+    const char *test_data = "ABC";
     size_t test_len                = 3;
 
     // Standard base64 no padding needed for 3 bytes
@@ -290,7 +290,7 @@ static void test_padding_scenarios_3byte(void)
     assert(encoded[3] != '='); // No padding for 3 bytes
 
     size_t decoded_len = strlen(encoded);
-    char *decoded = b64m_decode_std((unsigned char *)encoded, &decoded_len);
+    char *decoded = b64m_decode_std(encoded, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == 3);
     assert(memcmp(decoded, test_data, 3) == 0);
@@ -305,7 +305,7 @@ static void test_padding_scenarios_3byte(void)
     assert(test_len == 4);
 
     decoded_len = strlen(encoded);
-    decoded     = b64m_decode_url((unsigned char *)encoded, &decoded_len);
+    decoded     = b64m_decode_url(encoded, &decoded_len);
     assert(decoded != NULL);
     assert(decoded_len == 3);
     assert(memcmp(decoded, test_data, 3) == 0);
@@ -339,13 +339,13 @@ static void test_invalid_base64_characters(void)
         size_t len              = strlen(invalid_b64);
 
         // Test standard decode
-        char *result = b64m_decode_std((unsigned char *)invalid_b64, &len);
+        char *result = b64m_decode_std(invalid_b64, &len);
         assert(result == NULL);
         assert(errno == EINVAL);
 
         // Test URL decode
         len    = strlen(invalid_b64);
-        result = b64m_decode_url((unsigned char *)invalid_b64, &len);
+        result = b64m_decode_url(invalid_b64, &len);
         assert(result == NULL);
         assert(errno == EINVAL);
     }
@@ -374,7 +374,7 @@ static void test_invalid_padding_format(void)
          i < sizeof(invalid_paddings) / sizeof(invalid_paddings[0]); i++) {
         const char *invalid_padding = invalid_paddings[i];
         size_t len                  = strlen(invalid_padding);
-        char *result = b64m_decode_std((unsigned char *)invalid_padding, &len);
+        char *result = b64m_decode_std(invalid_padding, &len);
         assert(result == NULL);
         assert(errno == EINVAL);
     }
@@ -382,7 +382,7 @@ static void test_invalid_padding_format(void)
     // Test that URL-safe decode doesn't accept padding at all
     const char *url_with_padding = "AB==";
     size_t len                   = strlen(url_with_padding);
-    char *result = b64m_decode_url((unsigned char *)url_with_padding, &len);
+    char *result = b64m_decode_url(url_with_padding, &len);
     // URL-safe should still decode it but ignore padding
     if (result != NULL) {
         free(result);
@@ -403,7 +403,7 @@ static void test_size_overflow_protection(void)
     assert(b64m_encoded_len(huge_size) == SIZE_MAX);
 
     // Test with actual encode function
-    unsigned char dummy_data[1] = {0};
+    char dummy_data[1] = {0};
     size_t test_len =
         SIZE_MAX - 2; // This should trigger overflow in b64m_encoded_len
     errno        = 0; // Clear errno before test
@@ -442,7 +442,7 @@ static void test_enclen_accuracy(void)
 
     // Test standard base64 (with padding)
     size_t std_len    = input_len;
-    char *std_encoded = b64m_encode_std((unsigned char *)test_data, &std_len);
+    char *std_encoded = b64m_encode_std(test_data, &std_len);
     assert(std_encoded != NULL);
 
     // Calculate expected standard base64 length (always padded to multiple of
@@ -454,7 +454,7 @@ static void test_enclen_accuracy(void)
 
     // Test URL-safe base64 (no padding)
     size_t url_len    = input_len;
-    char *url_encoded = b64m_encode_url((unsigned char *)test_data, &url_len);
+    char *url_encoded = b64m_encode_url(test_data, &url_len);
     assert(url_encoded != NULL);
 
     // Calculate expected URL-safe base64 length (no padding)
@@ -491,7 +491,7 @@ static void test_size_based_decode(void)
         printf("  Testing %zu bytes... ", data_size);
 
         // Generate simple test data (all zeros for consistency)
-        unsigned char *test_data = calloc(data_size, 1);
+        char *test_data = calloc(data_size, 1);
         assert(test_data != NULL);
 
         // Encode
@@ -505,7 +505,7 @@ static void test_size_based_decode(void)
 
         // Decode
         size_t decode_len = encode_len;
-        char *decoded = b64m_decode_std((unsigned char *)encoded, &decode_len);
+        char *decoded = b64m_decode_std(encoded, &decode_len);
 
         if (decoded == NULL) {
             printf("DECODE FAILED (threshold found at %zu bytes)\n", data_size);
@@ -547,7 +547,7 @@ static void test_standard_base64_roundtrip(void)
 
         // Standard Base64 encode
         size_t encode_len = pattern_len;
-        char *encoded = b64m_encode_std((unsigned char *)pattern, &encode_len);
+        char *encoded = b64m_encode_std(pattern, &encode_len);
         assert(encoded != NULL);
 
         // Verify encoding length is correct
@@ -557,7 +557,7 @@ static void test_standard_base64_roundtrip(void)
         // Decode back
         size_t decode_len = encode_len;
         errno = 0;
-        char *decoded = b64m_decode_std((unsigned char *)encoded, &decode_len);
+        char *decoded = b64m_decode_std(encoded, &decode_len);
         if (decoded == NULL) {
             printf("DEBUG: Failed to decode pattern #%zu: \"%s\" (len=%zu), encoded=\"%s\" (len=%zu), errno=%d\n", 
                    i, pattern, pattern_len, encoded, encode_len, errno);
@@ -603,7 +603,7 @@ static void test_url_safe_base64_roundtrip(void)
 
         // URL-safe Base64 encode
         size_t encode_len = pattern_len;
-        char *encoded = b64m_encode_url((unsigned char *)pattern, &encode_len);
+        char *encoded = b64m_encode_url(pattern, &encode_len);
         assert(encoded != NULL);
 
         // Verify encoding length is correct (no padding)
@@ -617,7 +617,7 @@ static void test_url_safe_base64_roundtrip(void)
 
         // Decode back
         size_t decode_len = encode_len;
-        char *decoded = b64m_decode_url((unsigned char *)encoded, &decode_len);
+        char *decoded = b64m_decode_url(encoded, &decode_len);
         assert(decoded != NULL);
         assert(decode_len == pattern_len);
 
@@ -639,7 +639,7 @@ static void test_mixed_decode_compatibility(void)
     printf("Testing mixed decoder compatibility...\n");
 
     // Test data that uses characters from both encodings
-    const unsigned char test_data[] = "Test+/Data-_Mix";
+    const char test_data[] = "Test+/Data-_Mix";
     size_t data_len                 = sizeof(test_data) - 1;
 
     // Encode with standard base64
@@ -655,7 +655,7 @@ static void test_mixed_decode_compatibility(void)
     // Mixed decoder should handle standard encoding
     size_t mix_std_len = std_len;
     char *mix_std_decoded =
-        b64m_decode_mix((unsigned char *)std_encoded, &mix_std_len);
+        b64m_decode_mix(std_encoded, &mix_std_len);
     assert(mix_std_decoded != NULL);
     assert(mix_std_len == data_len);
     assert(memcmp(test_data, mix_std_decoded, data_len) == 0);
@@ -663,7 +663,7 @@ static void test_mixed_decode_compatibility(void)
     // Mixed decoder should handle URL-safe encoding
     size_t mix_url_len = url_len;
     char *mix_url_decoded =
-        b64m_decode_mix((unsigned char *)url_encoded, &mix_url_len);
+        b64m_decode_mix(url_encoded, &mix_url_len);
     assert(mix_url_decoded != NULL);
     assert(mix_url_len == data_len);
     assert(memcmp(test_data, mix_url_decoded, data_len) == 0);
@@ -673,7 +673,7 @@ static void test_mixed_decode_compatibility(void)
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-+";
     size_t mixed_len = strlen(mixed_b64);
     char *mixed_decoded =
-        b64m_decode_mix((unsigned char *)mixed_b64, &mixed_len);
+        b64m_decode_mix(mixed_b64, &mixed_len);
     assert(mixed_decoded != NULL);
 
     // Cleanup
@@ -693,12 +693,12 @@ static void test_byte_level_comparison(void)
 
     // Create a medium-size test case that might reveal issues
     size_t test_size         = 1000;
-    unsigned char *test_data = malloc(test_size);
+    char *test_data = malloc(test_size);
     assert(test_data != NULL);
 
     // Fill with pattern that's easy to debug
     for (size_t i = 0; i < test_size; i++) {
-        test_data[i] = (unsigned char)(i % 256);
+        test_data[i] = (char)(i % 256);
     }
 
     printf("  Testing %zu bytes with pattern data...\n", test_size);
@@ -714,7 +714,7 @@ static void test_byte_level_comparison(void)
 
     // Decode
     size_t decode_len = encode_len;
-    char *decoded     = b64m_decode_std((unsigned char *)encoded, &decode_len);
+    char *decoded     = b64m_decode_std(encoded, &decode_len);
 
     if (decoded == NULL) {
         printf("  ERROR: Decode failed! errno=%d\n", errno);
@@ -729,10 +729,10 @@ static void test_byte_level_comparison(void)
             // Compare byte by byte to find first difference
             bool match = true;
             for (size_t i = 0; i < test_size; i++) {
-                if (test_data[i] != (unsigned char)decoded[i]) {
+                if (test_data[i] != decoded[i]) {
                     printf("  ERROR: First mismatch at byte %zu: expected "
                            "0x%02x, got 0x%02x\n",
-                           i, test_data[i], (unsigned char)decoded[i]);
+                           i, (unsigned char)test_data[i], (unsigned char)decoded[i]);
                     match = false;
                     break;
                 }
@@ -770,7 +770,7 @@ static void test_decode_table_consistency(void)
 
         size_t decode_len = 4;
         char *decoded =
-            b64m_decode_std((unsigned char *)test_input, &decode_len);
+            b64m_decode_std(test_input, &decode_len);
 
         if (decoded == NULL) {
             printf("    ERROR: Character '%c' (index %d) decode failed! "
@@ -791,7 +791,7 @@ static void test_decode_table_consistency(void)
 
         size_t decode_len = 4;
         char *decoded =
-            b64m_decode_url((unsigned char *)test_input, &decode_len);
+            b64m_decode_url(test_input, &decode_len);
 
         if (decoded == NULL) {
             printf("    ERROR: Character '%c' (index %d) decode failed! "
@@ -815,7 +815,7 @@ static void test_decode_table_consistency(void)
     for (size_t i = 0; i < 5; i++) {
         const char *test  = padding_tests[i];
         size_t decode_len = strlen(test);
-        char *decoded     = b64m_decode_std((unsigned char *)test, &decode_len);
+        char *decoded     = b64m_decode_std(test, &decode_len);
 
         if (i < 3) {
             // Should succeed
@@ -847,7 +847,7 @@ static void test_encode_null_parameters(void)
     printf("Testing encode NULL parameters...\n");
 
     size_t len                = 10;
-    const unsigned char *data = (unsigned char *)"test data";
+    const char *data = "test data";
 
     // Test NULL src with standard encode
     errno        = 0;
@@ -895,7 +895,7 @@ static void test_encode_buffer_too_small(void)
 {
     printf("Testing encode buffer too small...\n");
 
-    const unsigned char *data = (unsigned char *)"Hello World";
+    const char *data = "Hello World";
     size_t data_len           = strlen((char *)data);
 
     // Calculate required buffer size
@@ -936,7 +936,7 @@ static void test_encode_zero_length_input(void)
 {
     printf("Testing encode zero length input...\n");
 
-    const unsigned char *empty = (unsigned char *)"";
+    const char *empty = "";
     size_t len                 = 0;
 
     // Test standard encode with zero length
@@ -976,8 +976,8 @@ static void test_decode_null_parameters(void)
     printf("Testing decode NULL parameters...\n");
 
     size_t len = 10;
-    const unsigned char *data =
-        (unsigned char *)"VGVzdCBEYXRh"; // "Test Data" in base64
+    const char *data =
+        "VGVzdCBEYXRh"; // "Test Data" in base64
 
     // Test NULL src
     errno        = 0;
@@ -1000,7 +1000,7 @@ static void test_decode_null_parameters(void)
     assert(errno == EINVAL);
 
     // Test b64m_decode_to_buffer with NULL parameters
-    unsigned char buffer[100];
+    char buffer[100];
     errno             = 0;
     size_t result_len = b64m_decode_to_buffer(NULL, 10, buffer, sizeof(buffer),
                                               BASE64MIX_STDDEC);
@@ -1025,15 +1025,15 @@ static void test_decode_buffer_too_small(void)
 {
     printf("Testing decode buffer too small...\n");
 
-    const unsigned char *encoded =
-        (unsigned char *)"SGVsbG8gV29ybGQ="; // "Hello World"
+    const char *encoded =
+        "SGVsbG8gV29ybGQ="; // "Hello World"
     size_t encoded_len = strlen((char *)encoded);
 
     // Calculate required buffer size
     size_t required_size = b64m_decoded_len(encoded_len) + 1;
 
     // Try with buffer that's too small
-    unsigned char small_buffer[5]; // Way too small
+    char small_buffer[5]; // Way too small
     errno = 0;
     size_t result =
         b64m_decode_to_buffer(encoded, encoded_len, small_buffer,
@@ -1042,7 +1042,7 @@ static void test_decode_buffer_too_small(void)
     assert(errno == ENOSPC);
 
     // Try with buffer that's just 1 byte too small
-    unsigned char *almost_buffer = malloc(required_size - 1);
+    char *almost_buffer = malloc(required_size - 1);
     assert(almost_buffer != NULL);
     errno  = 0;
     result = b64m_decode_to_buffer(encoded, encoded_len, almost_buffer,
@@ -1052,7 +1052,7 @@ static void test_decode_buffer_too_small(void)
     free(almost_buffer);
 
     // Verify exact size works
-    unsigned char *exact_buffer = malloc(required_size);
+    char *exact_buffer = malloc(required_size);
     assert(exact_buffer != NULL);
     result = b64m_decode_to_buffer(encoded, encoded_len, exact_buffer,
                                    required_size, BASE64MIX_STDDEC);
@@ -1084,7 +1084,7 @@ static void test_decode_invalid_characters(void)
 
         size_t len   = 4;
         errno        = 0;
-        char *result = b64m_decode_std((unsigned char *)test_str, &len);
+        char *result = b64m_decode_std(test_str, &len);
         assert(result == NULL);
         assert(errno == EINVAL);
     }
@@ -1093,7 +1093,7 @@ static void test_decode_invalid_characters(void)
     const char *invalid_8char = "ABCDEFG@"; // @ is invalid
     size_t len                = 8;
     errno                     = 0;
-    char *result = b64m_decode_std((unsigned char *)invalid_8char, &len);
+    char *result = b64m_decode_std(invalid_8char, &len);
     assert(result == NULL);
     assert(errno == EINVAL);
 
@@ -1101,7 +1101,7 @@ static void test_decode_invalid_characters(void)
     const char *invalid_2char = "AAAAA@"; // 4 valid + 2 with invalid
     len                       = 6;
     errno                     = 0;
-    result = b64m_decode_std((unsigned char *)invalid_2char, &len);
+    result = b64m_decode_std(invalid_2char, &len);
     assert(result == NULL);
     assert(errno == EINVAL);
 
@@ -1110,7 +1110,7 @@ static void test_decode_invalid_characters(void)
         "AAAA@B"; // Invalid in first of 2-char remainder
     len    = 6;
     errno  = 0;
-    result = b64m_decode_std((unsigned char *)invalid_2char_first, &len);
+    result = b64m_decode_std(invalid_2char_first, &len);
     assert(result == NULL);
     assert(errno == EINVAL);
 
@@ -1124,17 +1124,17 @@ static void test_decode_incomplete_groups(void)
     // Test single character (incomplete group) - should return error (RFC 4648)
     const char *single = "A";
     size_t len         = 1;
-    unsigned char buffer[10];
+    char buffer[10];
     errno = 0;
     size_t result_len = b64m_decode_to_buffer(
-        (unsigned char *)single, len, buffer, sizeof(buffer), BASE64MIX_STDDEC);
+        single, len, buffer, sizeof(buffer), BASE64MIX_STDDEC);
     assert(result_len == 0 && errno == EINVAL); // Single character should be rejected (RFC 4648)
 
     // Test 5 characters (1 incomplete group) - should return error (RFC 4648)
     const char *five = "ABCDE";
     len              = 5;
     errno = 0;
-    result_len       = b64m_decode_to_buffer((unsigned char *)five, len, buffer,
+    result_len       = b64m_decode_to_buffer(five, len, buffer,
                                              sizeof(buffer), BASE64MIX_STDDEC);
     assert(result_len == 0 && errno == EINVAL); // len % 4 == 1 should be rejected (RFC 4648)
 
@@ -1142,14 +1142,14 @@ static void test_decode_incomplete_groups(void)
     const char *nine = "ABCDEFGHI";
     len              = 9;
     errno = 0;
-    result_len       = b64m_decode_to_buffer((unsigned char *)nine, len, buffer,
+    result_len       = b64m_decode_to_buffer(nine, len, buffer,
                                              sizeof(buffer), BASE64MIX_STDDEC);
     assert(result_len == 0 && errno == EINVAL); // len % 4 == 1 should be rejected (RFC 4648)
 
     // Test with allocation version - should return NULL for len % 4 == 1 (RFC 4648)
     len                = 1;
     errno              = 0;
-    char *alloc_result = b64m_decode_std((unsigned char *)single, &len);
+    char *alloc_result = b64m_decode_std(single, &len);
     // Should return NULL with EINVAL for invalid length
     assert(alloc_result == NULL && errno == EINVAL);
 

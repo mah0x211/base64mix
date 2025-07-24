@@ -33,13 +33,13 @@ const char *data = "Hello World";
 size_t len = strlen(data);
 
 // Standard Base64 encoding (with padding)
-char *encoded = b64m_encode_std((unsigned char*)data, &len);
+char *encoded = b64m_encode_std(data, &len);
 printf("Encoded: %s\n", encoded);
 free(encoded);
 
 // URL-safe encoding (without padding)
 len = strlen(data);
-char *url_encoded = b64m_encode_url((unsigned char*)data, &len);
+char *url_encoded = b64m_encode_url(data, &len);
 printf("URL-safe: %s\n", url_encoded);
 free(url_encoded);
 ```
@@ -52,13 +52,13 @@ const char *encoded = "SGVsbG8gV29ybGQ=";
 size_t len = strlen(encoded);
 
 // Decode standard Base64
-unsigned char *decoded = (unsigned char*)b64m_decode_std((unsigned char*)encoded, &len);
+char *decoded = b64m_decode_std(encoded, &len);
 printf("Decoded: %.*s\n", (int)len, decoded);
 free(decoded);
 
 // Mixed format decoder (handles both standard and URL-safe)
 len = strlen(encoded);
-unsigned char *mixed = (unsigned char*)b64m_decode_mix((unsigned char*)encoded, &len);
+char *mixed = b64m_decode_mix(encoded, &len);
 free(mixed);
 ```
 
@@ -77,8 +77,7 @@ char *buffer = malloc(encoded_size);
 
 // Encode to your buffer
 size_t actual_len = b64m_encode_to_buffer_std(
-    (unsigned char*)data, input_len, 
-    buffer, encoded_size
+    data, input_len, buffer, encoded_size
 );
 
 printf("Encoded: %s (length: %zu)\n", buffer, actual_len);
@@ -87,7 +86,7 @@ free(buffer);
 
 ## Encoding Functions
 
-### `char *b64m_encode_std(const unsigned char *src, size_t *len)`
+### `char *b64m_encode_std(const char *src, size_t *len)`
 
 Encode binary data to standard Base64 format (with padding).
 
@@ -107,7 +106,7 @@ Encode binary data to standard Base64 format (with padding).
 - `ENOMEM` - Memory allocation failure
 
 
-### `char *b64m_encode_url(const unsigned char *src, size_t *len)`
+### `char *b64m_encode_url(const char *src, size_t *len)`
 
 Encode binary data to URL-safe Base64 format (without padding).
 
@@ -123,7 +122,7 @@ Encode binary data to URL-safe Base64 format (without padding).
 **Errors:** Same as `b64m_encode_std`
 
 
-### `size_t b64m_encode_to_buffer_std(const unsigned char *src, size_t srclen, char *dst, size_t dstlen)`
+### `size_t b64m_encode_to_buffer_std(const char *src, size_t srclen, char *dst, size_t dstlen)`
 
 Encode binary data to standard Base64 using user-provided buffer.
 
@@ -144,7 +143,7 @@ Encode binary data to standard Base64 using user-provided buffer.
 - `ENOSPC` - Output buffer too small
 
 
-### `size_t b64m_encode_to_buffer_url(const unsigned char *src, size_t srclen, char *dst, size_t dstlen)`
+### `size_t b64m_encode_to_buffer_url(const char *src, size_t srclen, char *dst, size_t dstlen)`
 
 Encode binary data to URL-safe Base64 using user-provided buffer.
 
@@ -155,7 +154,7 @@ Encode binary data to URL-safe Base64 using user-provided buffer.
 
 ## Decoding Functions
 
-### `char *b64m_decode_std(const unsigned char *src, size_t *len)`
+### `char *b64m_decode_std(const char *src, size_t *len)`
 
 Decode standard Base64 string to binary data.
 
@@ -174,7 +173,7 @@ Decode standard Base64 string to binary data.
 - `ENOMEM` - Memory allocation failure
 
 
-### `char *b64m_decode_url(const unsigned char *src, size_t *len)`
+### `char *b64m_decode_url(const char *src, size_t *len)`
 
 Decode URL-safe Base64 string to binary data.
 
@@ -183,7 +182,7 @@ Decode URL-safe Base64 string to binary data.
 **Errors:** Same as `b64m_decode_std`
 
 
-### `char *b64m_decode_mix(const unsigned char *src, size_t *len)`
+### `char *b64m_decode_mix(const char *src, size_t *len)`
 
 Decode mixed format Base64 (handles both standard and URL-safe).
 
@@ -192,7 +191,7 @@ Decode mixed format Base64 (handles both standard and URL-safe).
 **Errors:** Same as `b64m_decode_std`
 
 
-### `size_t b64m_decode_to_buffer_std(const unsigned char *src, size_t srclen, unsigned char *dst, size_t dstlen)`
+### `size_t b64m_decode_to_buffer_std(const char *src, size_t srclen, char *dst, size_t dstlen)`
 
 Decode standard Base64 string using user-provided buffer.
 
@@ -212,7 +211,7 @@ Decode standard Base64 string using user-provided buffer.
 - `ENOSPC` - Output buffer too small
 
 
-### `size_t b64m_decode_to_buffer_url(const unsigned char *src, size_t srclen, unsigned char *dst, size_t dstlen)`
+### `size_t b64m_decode_to_buffer_url(const char *src, size_t srclen, char *dst, size_t dstlen)`
 
 Decode URL-safe Base64 string using user-provided buffer.
 
@@ -221,7 +220,7 @@ Decode URL-safe Base64 string using user-provided buffer.
 **Errors:** Same as `b64m_decode_to_buffer_std`
 
 
-### `size_t b64m_decode_to_buffer_mix(const unsigned char *src, size_t srclen, unsigned char *dst, size_t dstlen)`
+### `size_t b64m_decode_to_buffer_mix(const char *src, size_t srclen, char *dst, size_t dstlen)`
 
 Decode mixed format Base64 using user-provided buffer.
 

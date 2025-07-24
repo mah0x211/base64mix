@@ -105,12 +105,11 @@ static inline size_t b64m_encoded_len(size_t len)
  * @note Buffer size can be calculated with b64m_encoded_len()
  * @note Result is always null-terminated
  */
-static inline size_t b64m_encode_to_buffer(const unsigned char *src,
-                                           size_t srclen, char *dst,
-                                           size_t dstlen,
+static inline size_t b64m_encode_to_buffer(const char *src, size_t srclen,
+                                           char *dst, size_t dstlen,
                                            const unsigned char enctbl[])
 {
-    const uint8_t *cur = src;
+    const uint8_t *cur = (const uint8_t *)src;
     unsigned char *ptr = (unsigned char *)dst;
     size_t remain      = 0;
     size_t i           = 0;
@@ -252,7 +251,7 @@ static inline size_t b64m_encode_to_buffer(const unsigned char *src,
  * @note Standard encoding adds padding, URL-safe encoding does not
  * @note Result is always null-terminated for safe string handling
  */
-static inline char *b64m_encode(const unsigned char *src, size_t *len,
+static inline char *b64m_encode(const char *src, size_t *len,
                                 const unsigned char enctbl[])
 {
     char *res     = NULL;
@@ -454,13 +453,12 @@ static inline size_t b64m_decoded_len(size_t enclen)
  * @note Result is always null-terminated for safety
  * @note Incomplete groups (1 char) are silently ignored as invalid
  */
-static inline size_t b64m_decode_to_buffer(const unsigned char *src,
-                                           size_t srclen, unsigned char *dst,
-                                           size_t dstlen,
+static inline size_t b64m_decode_to_buffer(const char *src, size_t srclen,
+                                           char *dst, size_t dstlen,
                                            const unsigned char dectbl[])
 {
-    unsigned char *ptr = dst;
-    const uint8_t *cur = src;
+    uint8_t *ptr       = (uint8_t *)dst;
+    const uint8_t *cur = (const uint8_t *)src;
     const uint8_t *end = NULL;
     uint8_t npad       = 0; // Number of padding characters at the end
     size_t len         = 0;
@@ -475,7 +473,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         errno = EINVAL;
         return 0;
     }
-    end = src + srclen;
+    end = cur + srclen;
 
     // Check if we have enough space (including null terminator)
     if (dstlen < b64m_decoded_len(srclen) + 1) {
@@ -492,11 +490,11 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     // Optimized single-pass padding calculation and validation
     // Scan from end to beginning once, validating as we go
     // Single pass: count and validate padding characters from the end
-    while (src < end && end[-1] == '=') {
+    while (cur < end && end[-1] == '=') {
         end--;
         npad++;
         // Early exit on too many padding characters
-        if ((srclen - (size_t)(end - src)) > 2) {
+        if ((srclen - (size_t)(end - cur)) > 2) {
             errno = EINVAL; // Too many padding characters
             return 0;
         }
@@ -540,12 +538,12 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
 
         // Extract 6 bytes from the 64-bit value
         // Now we can use cleaner shift amounts
-        ptr[0] = (unsigned char)(v >> 56);
-        ptr[1] = (unsigned char)(v >> 48);
-        ptr[2] = (unsigned char)(v >> 40);
-        ptr[3] = (unsigned char)(v >> 32);
-        ptr[4] = (unsigned char)(v >> 24);
-        ptr[5] = (unsigned char)(v >> 16);
+        ptr[0] = (uint8_t)(v >> 56);
+        ptr[1] = (uint8_t)(v >> 48);
+        ptr[2] = (uint8_t)(v >> 40);
+        ptr[3] = (uint8_t)(v >> 32);
+        ptr[4] = (uint8_t)(v >> 24);
+        ptr[5] = (uint8_t)(v >> 16);
         // Move pointers forward
         ptr += 6;
     }
@@ -569,9 +567,9 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         uint32_t v = ((uint32_t)d1 << 26) | ((uint32_t)d2 << 20) |
                      ((uint32_t)d3 << 14) | ((uint32_t)d4 << 8);
         // Extract 3 bytes from the 32-bit value
-        ptr[0] = (unsigned char)(v >> 24);
-        ptr[1] = (unsigned char)(v >> 16);
-        ptr[2] = (unsigned char)(v >> 8);
+        ptr[0] = (uint8_t)(v >> 24);
+        ptr[1] = (uint8_t)(v >> 16);
+        ptr[2] = (uint8_t)(v >> 8);
         // Move pointers forward
         ptr += 3;
     }
@@ -582,9 +580,9 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     if (len >= 3) {
         // Process 3 characters directly -> 2 bytes output
         // Batch validate all 3 characters first
-        unsigned char d0 = dectbl[cur[0]];
-        unsigned char d1 = dectbl[cur[1]];
-        unsigned char d2 = dectbl[cur[2]];
+        uint8_t d0 = dectbl[cur[0]];
+        uint8_t d1 = dectbl[cur[1]];
+        uint8_t d2 = dectbl[cur[2]];
 
         // Check if any character is invalid (single bitwise OR operation)
         if ((d0 | d1 | d2) > 63) {
@@ -601,8 +599,8 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         // Direct decode: 3 chars (18 bits) -> 2 bytes + 2 padding bits
         // [AAAAAA][BBBBBB][CCCCCC] -> [AAAAAA|BB][BBBB|CCCC|CC]
         uint32_t val = ((uint32_t)d0 << 12) | ((uint32_t)d1 << 6) | d2;
-        ptr[0]       = (unsigned char)(val >> 10); // First byte: [AAAAAA|BB]
-        ptr[1]       = (unsigned char)(val >> 2);  // Second byte: [BBBB|CCCC]
+        ptr[0]       = (uint8_t)(val >> 10); // First byte: [AAAAAA|BB]
+        ptr[1]       = (uint8_t)(val >> 2);  // Second byte: [BBBB|CCCC]
         ptr += 2;
         cur += 3;
         len = REMAINING_CHARS();
@@ -611,8 +609,8 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     if (len >= 2) {
         // Process 2 characters directly -> 1 byte output
         // Batch validate both characters
-        unsigned char d0 = dectbl[cur[0]];
-        unsigned char d1 = dectbl[cur[1]];
+        uint8_t d0 = dectbl[cur[0]];
+        uint8_t d1 = dectbl[cur[1]];
 
         // Check if any character is invalid
         if ((d0 | d1) > 63) {
@@ -629,7 +627,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
         // Direct decode: 2 chars (12 bits) -> 1 byte + 4 padding bits
         // [AAAAAA][BBBBBB] -> [AAAAAA|BB]
         uint32_t val = ((uint32_t)d0 << 6) | d1;
-        ptr[0]       = (unsigned char)(val >> 4); // Single byte: [AAAAAA|BB]
+        ptr[0]       = (uint8_t)(val >> 4); // Single byte: [AAAAAA|BB]
         ptr += 1;
         cur += 2;
     }
@@ -640,7 +638,7 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
     *ptr = 0;
 
     // Return decoded length
-    return (size_t)(ptr - dst);
+    return (size_t)((char *)ptr - dst);
 }
 
 /**
@@ -701,10 +699,10 @@ static inline size_t b64m_decode_to_buffer(const unsigned char *src,
  * terminator)
  * @note Incomplete groups (1 char) are silently ignored as invalid
  */
-static inline char *b64m_decode(const unsigned char *src, size_t *len,
+static inline char *b64m_decode(const char *src, size_t *len,
                                 const unsigned char dectbl[])
 {
-    unsigned char *res = NULL;
+    char *res = NULL;
     size_t buflen      = 0;
 
     // Validate input parameters
@@ -725,7 +723,7 @@ static inline char *b64m_decode(const unsigned char *src, size_t *len,
             return NULL;
         }
     }
-    return (char *)res;
+    return res;
 }
 
 /**
