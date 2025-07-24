@@ -874,18 +874,18 @@ static void test_encode_null_parameters(void)
     errno             = 0;
     size_t result_len = b64m_encode_to_buffer(NULL, 10, buffer, sizeof(buffer),
                                               BASE64MIX_STDENC);
-    assert(result_len == 0);
+    assert(result_len == SIZE_MAX);
     assert(errno == EINVAL);
 
     errno = 0;
     result_len =
         b64m_encode_to_buffer(data, 10, NULL, sizeof(buffer), BASE64MIX_STDENC);
-    assert(result_len == 0);
+    assert(result_len == SIZE_MAX);
     assert(errno == EINVAL);
 
     errno      = 0;
     result_len = b64m_encode_to_buffer(data, 10, buffer, sizeof(buffer), NULL);
-    assert(result_len == 0);
+    assert(result_len == SIZE_MAX);
     assert(errno == EINVAL);
 
     printf("Encode NULL parameters tests passed.\n");
@@ -906,7 +906,7 @@ static void test_encode_buffer_too_small(void)
     errno         = 0;
     size_t result = b64m_encode_to_buffer(
         data, data_len, small_buffer, sizeof(small_buffer), BASE64MIX_STDENC);
-    assert(result == 0);
+    assert(result == SIZE_MAX);
     assert(errno == ENOSPC);
 
     // Try with buffer that's just 1 byte too small
@@ -915,7 +915,7 @@ static void test_encode_buffer_too_small(void)
     errno  = 0;
     result = b64m_encode_to_buffer(data, data_len, almost_buffer,
                                    encoded_len - 1, BASE64MIX_STDENC);
-    assert(result == 0);
+    assert(result == SIZE_MAX);
     assert(errno == ENOSPC);
     free(almost_buffer);
 
@@ -1004,18 +1004,18 @@ static void test_decode_null_parameters(void)
     errno             = 0;
     size_t result_len = b64m_decode_to_buffer(NULL, 10, buffer, sizeof(buffer),
                                               BASE64MIX_STDDEC);
-    assert(result_len == 0);
+    assert(result_len == SIZE_MAX);
     assert(errno == EINVAL);
 
     errno = 0;
     result_len =
         b64m_decode_to_buffer(data, 10, NULL, sizeof(buffer), BASE64MIX_STDDEC);
-    assert(result_len == 0);
+    assert(result_len == SIZE_MAX);
     assert(errno == EINVAL);
 
     errno      = 0;
     result_len = b64m_decode_to_buffer(data, 10, buffer, sizeof(buffer), NULL);
-    assert(result_len == 0);
+    assert(result_len == SIZE_MAX);
     assert(errno == EINVAL);
 
     printf("Decode NULL parameters tests passed.\n");
@@ -1038,7 +1038,7 @@ static void test_decode_buffer_too_small(void)
     size_t result =
         b64m_decode_to_buffer(encoded, encoded_len, small_buffer,
                               sizeof(small_buffer), BASE64MIX_STDDEC);
-    assert(result == 0);
+    assert(result == SIZE_MAX);
     assert(errno == ENOSPC);
 
     // Try with buffer that's just 1 byte too small
@@ -1047,7 +1047,7 @@ static void test_decode_buffer_too_small(void)
     errno  = 0;
     result = b64m_decode_to_buffer(encoded, encoded_len, almost_buffer,
                                    required_size - 1, BASE64MIX_STDDEC);
-    assert(result == 0);
+    assert(result == SIZE_MAX);
     assert(errno == ENOSPC);
     free(almost_buffer);
 
@@ -1128,7 +1128,7 @@ static void test_decode_incomplete_groups(void)
     errno = 0;
     size_t result_len = b64m_decode_to_buffer(
         single, len, buffer, sizeof(buffer), BASE64MIX_STDDEC);
-    assert(result_len == 0 && errno == EINVAL); // Single character should be rejected (RFC 4648)
+    assert(result_len == SIZE_MAX && errno == EINVAL); // Single character should be rejected (RFC 4648)
 
     // Test 5 characters (1 incomplete group) - should return error (RFC 4648)
     const char *five = "ABCDE";
@@ -1136,7 +1136,7 @@ static void test_decode_incomplete_groups(void)
     errno = 0;
     result_len       = b64m_decode_to_buffer(five, len, buffer,
                                              sizeof(buffer), BASE64MIX_STDDEC);
-    assert(result_len == 0 && errno == EINVAL); // len % 4 == 1 should be rejected (RFC 4648)
+    assert(result_len == SIZE_MAX && errno == EINVAL); // len % 4 == 1 should be rejected (RFC 4648)
 
     // Test 9 characters (1 incomplete group) - should return error (RFC 4648)
     const char *nine = "ABCDEFGHI";
@@ -1144,7 +1144,7 @@ static void test_decode_incomplete_groups(void)
     errno = 0;
     result_len       = b64m_decode_to_buffer(nine, len, buffer,
                                              sizeof(buffer), BASE64MIX_STDDEC);
-    assert(result_len == 0 && errno == EINVAL); // len % 4 == 1 should be rejected (RFC 4648)
+    assert(result_len == SIZE_MAX && errno == EINVAL); // len % 4 == 1 should be rejected (RFC 4648)
 
     // Test with allocation version - should return NULL for len % 4 == 1 (RFC 4648)
     len                = 1;

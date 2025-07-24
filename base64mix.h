@@ -280,7 +280,13 @@ static inline char *b64m_encode(const char *src, size_t *len,
     if ((res = malloc(buflen))) {
         // Use zero-allocation version to do the actual encoding
         // Update length with actual encoded length
-        *len = b64m_encode_to_buffer(src, *len, res, buflen, enctbl);
+        size_t outlen = b64m_encode_to_buffer(src, *len, res, buflen, enctbl);
+        if (outlen == SIZE_MAX) {
+            // Encoding failed, free buffer and return NULL
+            free(res);
+            return NULL;
+        }
+        *len = outlen;
     }
     return res;
 }
